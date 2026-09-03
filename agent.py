@@ -3,9 +3,7 @@ from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
  
-# ---------------------------------------------------------
-# TASK 1: Configure LangChain and dependencies
-# ---------------------------------------------------------
+
 load_dotenv()
  
 if not os.getenv("GROQ_API_KEY"):
@@ -16,9 +14,7 @@ if not os.getenv("GROQ_API_KEY"):
     )
  
  
-# ---------------------------------------------------------
-# TASK 2 & 3: Foundational agent + prompt template
-# ---------------------------------------------------------
+
 class ComplianceAssistantAgent:
     """
     Phase 1 foundational agent for the Enterprise Legal & Compliance
@@ -34,13 +30,17 @@ class ComplianceAssistantAgent:
         self,
         model_name: str = "openai/gpt-oss-120b",
         temperature: float = 0.2,
+        max_tokens: int = 300,
     ):
         # temperature is kept low (0.2) because compliance answers should be
         # consistent and cautious, not "creative"
-        self.llm = ChatGroq(model=model_name, temperature=temperature)
+        self.llm = ChatGroq(
+            model=model_name,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
  
-        # The prompt template fixes the agent's role as a compliance
-        # assistant and defines the exact structure every response follows.
+        
         self.prompt_template = PromptTemplate(
             input_variables=["request"],
             template=(
@@ -51,14 +51,17 @@ class ComplianceAssistantAgent:
                 "Important: You must give general guidance only. You are "
                 "not a licensed advocate, and for binding legal decisions "
                 "the company should consult its legal counsel.\n\n"
+                "Keep the answer concise: for a simple query, use no more "
+                "than 100 words. Do not add background, examples, or extra "
+                "sections unless they are necessary to answer the query.\n\n"
                 "Employee/Officer Query: {request}\n\n"
                 "Respond in this structure:\n"
-                "1. Understanding: restate what is being asked, in one line\n"
-                "2. Relevant Area: name the likely compliance domain "
+                "1. Understanding: restate what is being asked, in one short line\n"
+                "2. Relevant Area: name the likely compliance domain in one line "
                 "(e.g. Companies Act 2013, POSH Act, Labour Codes, Data "
                 "Protection/DPDP Act, GST/Tax compliance, contract law, "
                 "etc.)\n"
-                "3. Guidance: a clear, practical answer or next step\n"
+                "3. Guidance: a clear, practical answer or next step in 2-4 sentences\n"
                 "4. Disclaimer: one line reminding the user this is not a "
                 "substitute for formal legal advice\n"
             ),

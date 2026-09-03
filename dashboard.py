@@ -56,7 +56,7 @@ with st.sidebar:
 # ---------------------------------------------------------
 # Main area
 # ---------------------------------------------------------
-st.title("Legal & Compliance Assistant — Foundation Demo")
+st.title("Legal & Compliance Assistant — Foundation ")
 st.caption("Milestone 1: Agent Environment Setup & Foundation Development")
  
 if not os.getenv("GROQ_API_KEY"):
