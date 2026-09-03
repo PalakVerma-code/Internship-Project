@@ -1,5 +1,11 @@
 # Milestone 1 — Agent Foundation Development
+
 ### Project: Automated Enterprise Legal & Compliance Workflow System
+
+# Agile documentation for your reference.
+- [Agile Documentation Sheet 1](https://docs.google.com/spreadsheets/d/1qOnqI21ksRY6J5UNZIjFbSMVg5eBb623yxsqVyT7-Nk/edit?usp=sharing)
+- [Agile Documentation Sheet 2](https://docs.google.com/spreadsheets/d/1BB0N4jOuBphVZ4GsUnnPzYoYj2IJBlYZ/edit?usp=sharing&ouid=116718011743655261611&rtpof=true&sd=true)
+- [Agile Documentation Sheet 3](https://docs.google.com/spreadsheets/d/12MiNxLmrmoSlD3EEVdP08wuH2aw84TuwhLnHOEumQHo/edit?usp=sharing)
  
 ## What's in this folder
 - `agent.py` — the agent code (`ComplianceAssistantAgent`) — this is your core deliverable
