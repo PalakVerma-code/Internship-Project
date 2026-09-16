@@ -14,9 +14,11 @@
 - `.env.example` — rename to `.env` and add your Groq API key here
 
  ## project Screenshot
- ![alt text](<Screenshot 2026-09-16 184613.png>)
- ![alt text](<Screenshot 2026-09-16 184635.png>)
- ![alt text](<Screenshot 2026-09-16 184654.png>)
+<img width="1872" height="865" alt="Screenshot 2026-09-16 184613" src="https://github.com/user-attachments/assets/b497923d-3b7c-4495-a873-832507444ad8" />
+<img width="1055" height="810" alt="Screenshot 2026-09-16 184635" src="https://github.com/user-attachments/assets/3aae0849-c958-48ce-9ced-4fd921dd04ec" />
+<img width="1137" height="866" alt="Screenshot 2026-09-16 184654" src="https://github.com/user-attachments/assets/f24e6083-fd67-429d-a3d4-cd1c51614d41" />
+
+
 
 ## How to run it (step by step)
  
