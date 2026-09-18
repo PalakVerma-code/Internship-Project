@@ -18,6 +18,27 @@
 <img width="1055" height="810" alt="Screenshot 2026-09-16 184635" src="https://github.com/user-attachments/assets/3aae0849-c958-48ce-9ced-4fd921dd04ec" />
 <img width="1137" height="866" alt="Screenshot 2026-09-16 184654" src="https://github.com/user-attachments/assets/f24e6083-fd67-429d-a3d4-cd1c51614d41" />
 
+```mermaid
+flowchart TD
+    A[User enters query in browser] --> B[static/index.html]
+    B --> C[POST /query in main.py]
+    C --> D[Create job_id]
+    D --> E[Background thread]
+    E --> F[graph/workflow.py]
+    F --> G[Manager Agent]
+    G -->|out_of_scope| H[Return scope message]
+    G -->|research_only or research_and_draft| I[Tool-Using Research Agent]
+    I --> J{Tool call needed?}
+    J -->|Yes| K[ToolNode]
+    K --> I
+    J -->|No| L[Finalize research]
+    L --> M[Risk Analysis Agent]
+    M -->|research_and_draft| N[Drafting Agent]
+    M -->|research_only| O[Return result]
+    N --> O
+    O --> P[GET /status/job_id]
+    P --> Q[Browser displays result]
+```
 
 
 ## How to run it (step by step)
