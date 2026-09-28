@@ -11,3 +11,13 @@ sentence-transformers==3.2.1
 pypdf==5.1.0
 python-dotenv==1.0.1
 streamlit==1.39.0
+requests==2.32.3
+ddgs==9.0.0
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.17
+reportlab==4.2.5
+pytest==8.3.3
+
+# Optional (used automatically if TAVILY_API_KEY is set in .env):
+# tavily-python
