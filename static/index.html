@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verity | Compliance Operations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#17232f; --muted:#65727d; --line:#dbe3e5; --teal:#0c716b; --teal-dark:#075550; --mint:#d9f1e9; --page:#eef4f2; --panel:rgba(255,255,255,.94); --surface:#fbfdfc; --soft:#f4f7f6; --shadow:0 18px 50px rgba(22,45,49,.08); }
+  :root[data-theme="dark"] { --ink:#e5f1ef; --muted:#91a9a7; --line:#29413f; --teal:#6bd2c1; --teal-dark:#123b3a; --mint:#173f3b; --page:#101d20; --panel:rgba(22,38,41,.96); --surface:#15282b; --soft:#1b3032; --shadow:0 18px 50px rgba(0,0,0,.28); }
+  * { box-sizing:border-box; }
+  body { margin:0; color:var(--ink); background:var(--page); font-family:'DM Sans',sans-serif; background-image:linear-gradient(rgba(255,255,255,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.35) 1px,transparent 1px); background-size:28px 28px; transition:background .25s,color .25s; }
+  :root[data-theme="dark"] body { background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px); }
+  .max-w-6xl { max-width:1240px; margin:0 auto; padding:34px 28px 56px; }
+  .flex { display:flex; } .items-center { align-items:center; } .justify-between { justify-content:space-between; }
+  .grid { display:grid; } .grid-cols-1 { grid-template-columns:1fr; } .gap-6 { gap:22px; }
+  .space-y-6 > * + * { margin-top:22px; } .lg\\:col-span-1,.lg\\:col-span-2 { grid-column:span 1; }
+  h1,h2,h3 { font-family:'Space Grotesk',sans-serif; } h1 { margin:0; font-size:clamp(26px,3vw,40px); letter-spacing:-.8px; } h2 { margin:0 0 16px; font-size:18px; } h3 { letter-spacing:.08em; }
+  .mb-6 { margin-bottom:28px; } .mt-1 { margin-top:6px; } .text-slate-500 { color:var(--muted); } .text-sm { font-size:14px; } .text-xs { font-size:11px; }
+  .flex.items-center.justify-between.mb-6 { position:relative; } .flex.items-center.justify-between.mb-6::after { content:'CONTROL ROOM / 01'; position:absolute; right:0; top:-22px; color:var(--teal); font:700 10px 'DM Sans'; letter-spacing:.16em; }
+  .bg-white { background:var(--panel); } .rounded-xl { border-radius:18px; } .border { border:1px solid var(--line); } .shadow-sm { box-shadow:var(--shadow); } .p-5 { padding:24px; }
+  .bg-white.rounded-xl { position:relative; overflow:hidden; } .bg-white.rounded-xl::before { content:''; display:block; width:42px; height:3px; margin-bottom:18px; background:var(--teal); }
+  input[type=file] { width:100%; padding:13px; border:1px dashed #aec5c1; border-radius:10px; background:var(--surface); color:var(--muted); font-size:13px; }
+  button { border:0; border-radius:9px; padding:12px 16px; font:600 13px 'DM Sans'; cursor:pointer; transition:transform .18s,box-shadow .18s,background .18s; } button:hover { transform:translateY(-1px); box-shadow:0 8px 18px rgba(12,113,107,.18); } button:disabled { opacity:.55; cursor:wait; transform:none; }
+  .bg-slate-800,#submitBtn { background:var(--teal-dark); color:white; } .bg-white.border { background:var(--surface); color:var(--teal); border:1px solid #b9d0cc; } .w-full { width:100%; }
+  .mt-2 { margin-top:9px; } .mt-3 { margin-top:14px; } .mt-4 { margin-top:22px; } .border-slate-200 { border-color:var(--line); } .border-slate-300 { border-color:#b9c9c8; }
+  textarea { font:14px/1.6 'DM Sans'; } #queryInput { width:100%; min-height:124px; resize:vertical; border:1px solid #b9c9c8; border-radius:12px; padding:16px; color:var(--ink); background:var(--surface); outline:none; } #queryInput:focus { border-color:var(--teal); box-shadow:0 0 0 4px var(--mint); }
+  #executionLog { padding:16px; border-radius:12px; background:#17232f; color:#b9e6da; min-height:112px; max-height:260px; overflow-y:auto; } #executionLog::before { content:'LIVE AGENT TELEMETRY'; display:block; margin-bottom:12px; color:#89bcb3; font:700 10px 'DM Sans'; letter-spacing:.16em; }
+  .log-enter { animation:fadeIn .3s ease-out; padding:5px 0; border-bottom:1px solid rgba(185,230,218,.12); } @keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
+  #docList { list-style:none; padding:0; margin:0; } #docList li { padding:10px 0; border-bottom:1px solid var(--line); color:var(--teal); } #pdfPreview { width:100%; height:280px; border:1px solid var(--line); border-radius:10px; background:var(--soft); }
+  .answer-content { color:var(--ink); font-size:14px; line-height:1.7; overflow-wrap:anywhere; } .answer-content h4 { margin:20px 0 8px; font:700 17px 'Space Grotesk',sans-serif; color:var(--teal); } .answer-content p { margin:0 0 12px; } .answer-content ul,.answer-content ol { margin:8px 0 16px 22px; padding:0; } .answer-content li { margin:5px 0; } .answer-content strong { color:var(--ink); font-weight:700; } .answer-content code { padding:2px 5px; border-radius:4px; background:var(--soft); color:var(--teal); font-size:12px; } .answer-content table { width:100%; margin:14px 0 18px; border-collapse:collapse; display:block; overflow-x:auto; border:1px solid var(--line); border-radius:10px; } .answer-content th,.answer-content td { min-width:140px; padding:10px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; } .answer-content th { background:var(--soft); color:var(--teal); font-size:12px; text-transform:uppercase; letter-spacing:.04em; } .answer-content tr:last-child td { border-bottom:0; }
+  .draft-preview { padding:22px; border:1px solid var(--line); border-radius:12px; background:var(--surface); } .draft-raw-label { display:block; margin:16px 0 7px; color:var(--muted); font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; } #draftText { width:100%; color:var(--muted); background:var(--soft); }
+  .trace-panel { padding:16px; border:1px solid var(--line); border-radius:12px; background:var(--surface); } .trace-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; } .trace-item { padding:12px; border-radius:9px; background:var(--soft); } .trace-label { display:block; margin-bottom:5px; color:var(--muted); font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; } .trace-value { color:var(--ink); font-size:13px; font-weight:700; } .trace-value.good { color:var(--teal); } .trace-value.review { color:#b87925; } .agent-path { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; } .agent-step { padding:6px 9px; border:1px solid var(--line); border-radius:999px; color:var(--teal); background:var(--panel); font-size:11px; font-weight:700; } .agent-arrow { color:var(--muted); align-self:center; font-size:12px; } hr { border:0; border-top:1px solid var(--line); margin:16px 0; }
+  #resultsPanel { animation:reveal .4s ease-out; } @keyframes reveal { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } } #resultsPanel .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; } #riskCard,#resultsPanel .grid > div { border-radius:12px; padding:16px; min-height:94px; }
+  .risk-low { background:#e3f4e8; color:#206b42; border-color:#abd9b9; } .risk-medium { background:#fff2d9; color:#8a5b1d; border-color:#edcf91; } .risk-high { background:#fce4e1; color:#9a3f35; border-color:#e7b0aa; } .risk-unknown { background:var(--soft); color:var(--muted); border-color:var(--line); }
+  .theme-toggle { display:inline-flex; align-items:center; gap:8px; margin-left:12px; padding:8px 11px; border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--ink); font-size:12px; }
+  .theme-toggle:hover { box-shadow:none; transform:none; background:var(--mint); }
+  .theme-icon { font-size:15px; line-height:1; }
+  .text-slate-50 { color:var(--ink); } body.bg-slate-50 { background:var(--page); } .text-slate-700,.text-slate-800 { color:var(--ink); } .text-slate-600 { color:var(--muted); } .text-slate-400 { color:var(--muted); } .bg-slate-100 { background:var(--soft); } .bg-green-100 { background:#dff5e7; } .text-green-700 { color:#206b42; } .bg-yellow-100 { background:#fff2d9; } .text-yellow-700 { color:#8a5b1d; } .bg-red-100 { background:#fce4e1; } .text-red-700,.text-red-600 { color:#c0564c; }
+  @media (min-width:860px) { .grid-cols-1 { grid-template-columns:minmax(250px,.8fr) minmax(0,1.7fr); } }
+  @media (max-width:600px) { .max-w-6xl { padding:24px 16px 40px; } .flex.items-center.justify-between { align-items:flex-start; gap:16px; flex-direction:column; } .flex.items-center.justify-between.mb-6::after { top:-14px; right:0; } #resultsPanel .grid,.trace-grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<div class="max-w-6xl mx-auto p-6">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-800">⚖️ Legal & Compliance Multi-Agent System</h1>
+      <p class="text-slate-500 text-sm mt-1">Manager → Legal Research + Tools → Risk Analysis → Drafting</p>
+    </div>
+    <div class="flex items-center">
+      <span id="apiStatus" class="text-xs px-3 py-1 rounded-full bg-slate-200 text-slate-600">Checking API...</span>
+      <button id="themeToggle" class="theme-toggle" type="button" onclick="toggleTheme()" aria-label="Switch to dark mode">
+        <span class="theme-icon" aria-hidden="true">☾</span><span id="themeLabel">Dark mode</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- LEFT COLUMN: Documents + Query -->
+    <div class="lg:col-span-1 space-y-6">
+
+      <!-- Document upload / knowledge base -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <h2 class="font-semibold text-slate-700 mb-3">📄 Knowledge Base</h2>
+        <input type="file" id="pdfInput" accept="application/pdf"
+               class="block w-full text-sm text-slate-600 mb-3 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"/>
+        <button onclick="uploadPdf()" class="w-full bg-slate-800 text-white text-sm py-2 rounded-lg hover:bg-slate-700 transition">Upload PDF</button>
+        <button onclick="rebuildKB()" class="w-full mt-2 bg-white border border-slate-300 text-slate-700 text-sm py-2 rounded-lg hover:bg-slate-50 transition">🔄 Rebuild Index</button>
+        <div id="uploadMsg" class="text-xs mt-2 text-slate-500"></div>
+
+        <div class="mt-4">
+          <h3 class="text-xs font-semibold text-slate-500 uppercase mb-2">Indexed Documents</h3>
+          <ul id="docList" class="text-sm text-slate-600 space-y-1"></ul>
+        </div>
+      </div>
+
+      <!-- PDF preview -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <h2 class="font-semibold text-slate-700 mb-3">🔍 Preview</h2>
+        <iframe id="pdfPreview" class="w-full h-64 rounded-lg border border-slate-200 bg-slate-50"></iframe>
+        <p class="text-xs text-slate-400 mt-2">Click a document above to preview it here.</p>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: Query + Live Execution + Results -->
+    <div class="lg:col-span-2 space-y-6">
+
+      <!-- Query box -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <h2 class="font-semibold text-slate-700 mb-3">💬 Ask a Compliance Question</h2>
+        <textarea id="queryInput" rows="3" placeholder="e.g. Draft a notice about our new data breach notification protocol"
+                  class="w-full border border-slate-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"></textarea>
+        <button onclick="submitQuery()" id="submitBtn" class="mt-3 bg-blue-600 text-white text-sm px-5 py-2 rounded-lg hover:bg-blue-700 transition">Run Multi-Agent Pipeline</button>
+      </div>
+
+      <!-- Live execution log -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <h2 class="font-semibold text-slate-700 mb-3">⚙️ Live Execution Log</h2>
+        <div id="executionLog" class="space-y-1 text-sm font-mono text-slate-600 min-h-[80px] max-h-56 overflow-y-auto">
+          <p class="text-slate-400">Waiting for a query...</p>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div id="resultsPanel" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
+        <h2 class="font-semibold text-slate-700">📊 Results</h2>
+
+        <div class="trace-panel">
+          <h3 class="text-xs font-semibold text-slate-500 uppercase mb-1">🔎 Decision Trace</h3>
+          <div id="traceGrid" class="trace-grid"></div>
+          <div id="agentPath" class="agent-path"></div>
+        </div>
+
+        <div>
+          <h3 class="text-xs font-semibold text-slate-500 uppercase mb-1">Research Findings</h3>
+          <p id="researchAnswer" class="text-sm text-slate-700 whitespace-pre-line"></p>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div id="riskCard" class="rounded-lg border p-3 risk-unknown">
+            <p class="text-xs uppercase font-semibold opacity-70">Risk Level</p>
+            <p id="riskLevel" class="text-lg font-bold">—</p>
+          </div>
+          <div class="rounded-lg border border-slate-200 p-3 bg-slate-50">
+            <p class="text-xs uppercase font-semibold text-slate-500">Key Factors</p>
+            <p id="riskFactors" class="text-sm text-slate-700">—</p>
+          </div>
+          <div class="rounded-lg border border-slate-200 p-3 bg-slate-50">
+            <p class="text-xs uppercase font-semibold text-slate-500">Urgency</p>
+            <p id="riskUrgency" class="text-sm text-slate-700">—</p>
+          </div>
+        </div>
+
+        <div id="draftSection" class="hidden">
+          <h3 class="text-xs font-semibold text-slate-500 uppercase mb-1">✍️ Drafted Document</h3>
+          <div id="draftPreview" class="answer-content draft-preview"></div>
+          <label class="draft-raw-label" for="draftText">Plain text copy</label>
+          <textarea id="draftText" rows="6" readonly class="w-full text-sm border border-slate-200 rounded-lg p-3 bg-slate-50"></textarea>
+          <button onclick="downloadDraft()" class="mt-2 text-sm bg-slate-800 text-white px-4 py-1.5 rounded-lg hover:bg-slate-700">Download .txt</button>
+        </div>
+
+        <div id="errorsSection" class="hidden">
+          <h3 class="text-xs font-semibold text-red-500 uppercase mb-1">⚠️ Errors Encountered</h3>
+          <ul id="errorsList" class="text-sm text-red-600 list-disc list-inside"></ul>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+let pollTimer = null;
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const isDark = theme === 'dark';
+  document.querySelector('.theme-icon').textContent = isDark ? '☀' : '☾';
+  document.getElementById('themeLabel').textContent = isDark ? 'Light mode' : 'Dark mode';
+  document.getElementById('themeToggle').setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+}
+
+function toggleTheme() {
+  const nextTheme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('verity-theme', nextTheme);
+  applyTheme(nextTheme);
+}
+
+applyTheme(localStorage.getItem('verity-theme') || 'light');
+
+async function checkApiHealth() {
+  try {
+    const res = await fetch(`${API_BASE}/health`);
+    const data = await res.json();
+    const el = document.getElementById('apiStatus');
+    if (data.groq_key_configured) {
+      el.textContent = '● API Connected';
+      el.className = 'text-xs px-3 py-1 rounded-full bg-green-100 text-green-700';
+    } else {
+      el.textContent = '● No Groq API Key Set';
+      el.className = 'text-xs px-3 py-1 rounded-full bg-yellow-100 text-yellow-700';
+    }
+  } catch (e) {
+    const el = document.getElementById('apiStatus');
+    el.textContent = '● API Unreachable';
+    el.className = 'text-xs px-3 py-1 rounded-full bg-red-100 text-red-700';
+  }
+}
+
+async function loadDocuments() {
+  try {
+    const res = await fetch(`${API_BASE}/documents`);
+    const data = await res.json();
+    const list = document.getElementById('docList');
+    list.innerHTML = '';
+    if (data.documents.length === 0) {
+      list.innerHTML = '<li class="text-slate-400">No documents indexed yet.</li>';
+      return;
+    }
+    data.documents.forEach(name => {
+      const li = document.createElement('li');
+      li.className = 'cursor-pointer hover:text-blue-600 truncate';
+      li.textContent = '📄 ' + name;
+      li.onclick = () => {
+        document.getElementById('pdfPreview').src = `${API_BASE}/documents/${encodeURIComponent(name)}`;
+      };
+      list.appendChild(li);
+    });
+  } catch (e) { console.error(e); }
+}
+
+async function uploadPdf() {
+  const input = document.getElementById('pdfInput');
+  if (!input.files.length) { alert('Choose a PDF first.'); return; }
+  const formData = new FormData();
+  formData.append('file', input.files[0]);
+  document.getElementById('uploadMsg').textContent = 'Uploading...';
+  try {
+    const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+    const data = await res.json();
+    document.getElementById('uploadMsg').textContent = `Saved: ${data.filename}. Click "Rebuild Index" to include it in search.`;
+    loadDocuments();
+  } catch (e) {
+    document.getElementById('uploadMsg').textContent = 'Upload failed: ' + e;
+  }
+}
+
+async function rebuildKB() {
+  document.getElementById('uploadMsg').textContent = 'Rebuilding knowledge base... this can take a moment.';
+  try {
+    await fetch(`${API_BASE}/rebuild-knowledge-base`, { method: 'POST' });
+    document.getElementById('uploadMsg').textContent = 'Knowledge base rebuilt successfully.';
+  } catch (e) {
+    document.getElementById('uploadMsg').textContent = 'Rebuild failed: ' + e;
+  }
+}
+
+function appendLog(text) {
+  const log = document.getElementById('executionLog');
+  if (log.children.length === 1 && log.children[0].textContent.includes('Waiting')) {
+    log.innerHTML = '';
+  }
+  const line = document.createElement('div');
+  line.className = 'log-enter';
+  line.textContent = text;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+const NODE_LABELS = {
+  manager: '🧭 Manager Agent — classifying request...',
+  research_agent: '📚 Research Agent — reasoning / calling tools...',
+  tools: '🛠️ Executing tool call...',
+  finalize_research: '✅ Research finalized.',
+  out_of_scope: '⛔ Out of scope — no tools or risk assessment run.',
+  risk_analysis: '⚠️ Risk Analysis Agent — scoring risk...',
+  drafting_agent: '✍️ Drafting Agent — writing document...',
+};
+
+async function submitQuery() {
+  const query = document.getElementById('queryInput').value.trim();
+  if (!query) { alert('Type a question first.'); return; }
+
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('submitBtn').textContent = 'Running...';
+  document.getElementById('resultsPanel').classList.add('hidden');
+  document.getElementById('executionLog').innerHTML = '';
+  appendLog('🚀 Submitting query...');
+
+  try {
+    const res = await fetch(`${API_BASE}/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query })
+    });
+    const data = await res.json();
+    pollStatus(data.job_id);
+  } catch (e) {
+    appendLog('❌ Failed to submit query: ' + e);
+    resetSubmitButton();
+  }
+}
+
+function resetSubmitButton() {
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('submitBtn').textContent = 'Run Multi-Agent Pipeline';
+}
+
+function escapeHtml(value) {
+  return value.replace(/[&<>'"]/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+  }[character]));
+}
+
+function renderMarkdown(markdown) {
+  const normalized = String(markdown || '(no answer)')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/\r\n/g, '\n');
+  const lines = normalized.split('\n');
+  let html = '';
+  let paragraph = [];
+  let listType = null;
+  let tableRows = [];
+
+  const inline = text => escapeHtml(text)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  const flushParagraph = () => {
+    if (paragraph.length) { html += `<p>${inline(paragraph.join(' '))}</p>`; paragraph = []; }
+  };
+  const closeList = () => { if (listType) { html += `</${listType}>`; listType = null; } };
+  const flushTable = () => {
+    if (!tableRows.length) return;
+    const rows = tableRows.filter(row => !/^\s*\|?\s*:?-{3,}/.test(row));
+    if (rows.length) {
+      const cells = row => row.replace(/^\s*\|\s*|\s*\|\s*$/g, '').split('|').map(cell => cell.trim());
+      html += '<table><thead><tr>' + cells(rows[0]).map(cell => `<th>${inline(cell)}</th>`).join('') + '</tr></thead><tbody>';
+      rows.slice(1).forEach(row => { html += '<tr>' + cells(row).map(cell => `<td>${inline(cell)}</td>`).join('') + '</tr>'; });
+      html += '</tbody></table>';
+    }
+    tableRows = [];
+  };
+
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed) { flushParagraph(); closeList(); flushTable(); return; }
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) { flushParagraph(); closeList(); tableRows.push(trimmed); return; }
+    flushTable();
+    if (/^(-{3,}|_{3,})$/.test(trimmed)) { flushParagraph(); closeList(); html += '<hr>'; return; }
+    const heading = trimmed.match(/^#{1,4}\s+(.+)/);
+    if (heading) { flushParagraph(); closeList(); html += `<h4>${inline(heading[1])}</h4>`; return; }
+    const letterField = trimmed.match(/^(Date|To|From|Subject|CC|Prepared by|Approved by):\s*(.*)$/i);
+    if (letterField) { flushParagraph(); closeList(); html += `<p><strong>${inline(letterField[1])}:</strong> ${inline(letterField[2])}</p>`; return; }
+    const listItem = trimmed.match(/^[-*]\s+(.+)/) || trimmed.match(/^\d+\.\s+(.+)/);
+    if (listItem) {
+      flushParagraph();
+      const nextType = /^\d+\./.test(trimmed) ? 'ol' : 'ul';
+      if (listType !== nextType) { closeList(); html += `<${nextType}>`; listType = nextType; }
+      html += `<li>${inline(listItem[1])}</li>`;
+      return;
+    }
+    closeList();
+    paragraph.push(trimmed);
+  });
+  flushParagraph(); closeList(); flushTable();
+  return html;
+}
+
+let loggedNodeCount = 0;
+
+function pollStatus(jobId) {
+  loggedNodeCount = 0;
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/status/${jobId}`);
+      const data = await res.json();
+
+      while (loggedNodeCount < data.logs.length) {
+        const entry = data.logs[loggedNodeCount];
+        appendLog(`[${entry.time}] ${NODE_LABELS[entry.node] || entry.node}`);
+        loggedNodeCount++;
+      }
+
+      if (data.status === 'completed') {
+        clearInterval(pollTimer);
+        renderResults(data.result, data.logs);
+        resetSubmitButton();
+      } else if (data.status === 'failed') {
+        clearInterval(pollTimer);
+        appendLog('❌ Pipeline failed: ' + data.error);
+        resetSubmitButton();
+      }
+    } catch (e) {
+      clearInterval(pollTimer);
+      appendLog('❌ Lost connection to server: ' + e);
+      resetSubmitButton();
+    }
+  }, 1000);
+}
+
+let lastDraft = '';
+
+function renderTrace(result, logs) {
+  const completedNodes = (logs || []).map(entry => entry.node);
+  const uniqueNodes = [...new Set(completedNodes)];
+  const toolCount = completedNodes.filter(node => node === 'tools').length;
+  const hasErrors = result.errors && result.errors.length > 0;
+  const evidenceText = toolCount > 0 ? 'Internal evidence retrieved' : 'No tool evidence';
+  const reviewText = hasErrors || ['High', 'Unknown'].includes(result.risk_level) ? 'Human review needed' : 'Review recommended';
+  const routeText = (result.route || 'unknown').replace(/_/g, ' ');
+  document.getElementById('traceGrid').innerHTML = `
+    <div class="trace-item"><span class="trace-label">Decision route</span><span class="trace-value">${routeText}</span></div>
+    <div class="trace-item"><span class="trace-label">Tools called</span><span class="trace-value ${toolCount ? 'good' : ''}">${toolCount} execution${toolCount === 1 ? '' : 's'}</span></div>
+    <div class="trace-item"><span class="trace-label">Evidence</span><span class="trace-value ${toolCount ? 'good' : 'review'}">${evidenceText}</span></div>
+    <div class="trace-item"><span class="trace-label">Next action</span><span class="trace-value review">${reviewText}</span></div>`;
+  const labels = { manager: 'Manager', out_of_scope: 'Scope guardrail', research_agent: 'Research', tools: 'Evidence tool', finalize_research: 'Findings', risk_analysis: 'Risk analysis', drafting_agent: 'Drafting' };
+  document.getElementById('agentPath').innerHTML = uniqueNodes.map((node, index) => `${index ? '<span class="agent-arrow">→</span>' : ''}<span class="agent-step">${labels[node] || node}</span>`).join('');
+}
+
+function renderResults(result, logs) {
+  document.getElementById('resultsPanel').classList.remove('hidden');
+  renderTrace(result, logs);
+  document.getElementById('researchAnswer').innerHTML = renderMarkdown(result.research_answer);
+
+  const riskCard = document.getElementById('riskCard');
+  riskCard.className = 'rounded-lg border p-3 risk-' + (result.risk_level || 'unknown').toLowerCase();
+  document.getElementById('riskLevel').textContent = result.risk_level || 'Unknown';
+  document.getElementById('riskFactors').textContent = result.key_risk_factors || '—';
+  document.getElementById('riskUrgency').textContent = result.recommended_urgency || '—';
+
+  if (result.draft) {
+    document.getElementById('draftSection').classList.remove('hidden');
+    document.getElementById('draftPreview').innerHTML = renderMarkdown(result.draft);
+    document.getElementById('draftText').value = result.draft;
+    lastDraft = result.draft;
+  } else {
+    document.getElementById('draftSection').classList.add('hidden');
+    document.getElementById('draftPreview').innerHTML = '';
+  }
+
+  if (result.errors && result.errors.length > 0) {
+    document.getElementById('errorsSection').classList.remove('hidden');
+    const list = document.getElementById('errorsList');
+    list.innerHTML = '';
+    result.errors.forEach(err => {
+      const li = document.createElement('li');
+      li.textContent = err;
+      list.appendChild(li);
+    });
+  } else {
+    document.getElementById('errorsSection').classList.add('hidden');
+  }
+}
+
+function downloadDraft() {
+  const blob = new Blob([lastDraft], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'compliance_draft.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+checkApiHealth();
+loadDocuments();
+</script>
+
+</body>
+</html>
