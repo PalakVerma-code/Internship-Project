@@ -1,33 +1,19 @@
-"""
-Phase 3 - Risk Analysis Agent
-----------------------------------
-This agent's ONE job: take the research findings and evaluate how urgent /
-risky the situation is for the company, so the response isn't just
-informational but also flags what needs attention.
-"""
-
+"""Phase 3 - Risk Analysis Agent"""
 from typing import Dict, Any
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 
 
 class RiskAnalysisAgent:
-    """Assesses compliance risk level based on research findings."""
-
     def __init__(self, model_name: str = "openai/gpt-oss-120b"):
         self.llm = ChatGroq(model=model_name, temperature=0.1)
         self.prompt_template = PromptTemplate(
             input_variables=["query", "research_findings"],
             template=(
-                "You are a Risk Analysis Agent for corporate compliance. "
-                "Based on the query and research findings below, assess "
-                "the compliance risk.\n\n"
-                "Query: {query}\n\n"
-                "Research Findings:\n{research_findings}\n\n"
-                "Respond in EXACTLY this format:\n"
-                "Risk Level: <Low/Medium/High>\n"
-                "Key Risk Factors: <one short sentence>\n"
-                "Recommended Urgency: <one short sentence on timeline>\n"
+                "Based on the query and findings, assess compliance risk.\n\n"
+                "Query: {query}\nFindings:\n{research_findings}\n\n"
+                "Respond EXACTLY as:\nRisk Level: <Low/Medium/High>\n"
+                "Key Risk Factors: <one sentence>\nRecommended Urgency: <one sentence>\n"
             ),
         )
 
