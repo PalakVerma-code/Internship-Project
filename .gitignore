@@ -2,6 +2,10 @@ __pycache__/
 .env
 venv/
 chroma_db/
-
+memory_db/
 .pytest_cache/
 .coverage
+checkpoints.sqlite
+checkpoints.sqlite-shm
+checkpoints.sqlite-wal
+requirementss.txt
