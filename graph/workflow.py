@@ -1,19 +1,45 @@
 """
-Milestone 2 - Multi-Agent Workflow with Real Tool Integration
---------------------------------------------------------------------
-Extends the Phase 3 graph with a genuine tool-calling loop:
+Milestone 3 - Multi-Agent Workflow with Tools, Coordination & Memory
+--------------------------------------------------------------------------
+Builds on the Milestone 2 tool-calling graph by adding:
 
-    START -> Manager (routes)
-          -> Tool-Using Research Agent <-> Tools (loops until no more tool calls)
-          -> Risk Analysis Agent
-          -> [conditional] -> Drafting Agent (only if route == research_and_draft)
+  1. Short-term memory: the graph is compiled WITH a checkpointer, so
+     passing the same thread_id across multiple run_compliance_workflow()
+     calls gives every agent the full prior conversation, not just the
+     latest message.
+  2. Long-term memory: a log_memory_node persists every completed run
+     (including out-of-scope ones) into the audit-log vector store in
+     memory/long_term_memory.py, and agents can search that history via
+     the search_audit_history tool in tools.py.
+  3. Agent coordination: the same 4 named agents from Milestone 1/2 -
+     Manager Agent, Tool-Using Research Agent, Risk Analysis Agent,
+     Drafting Agent - now cover the 4 core business roles this milestone
+     asks for (Planning, Research, Analysis, Decision/Drafting). See the
+     "Agent role mapping" note below.
+
+    START -> Manager (routes: research_only / research_and_draft / out_of_scope)
+          -> [out_of_scope] --------------------------------------------+
+          -> Tool-Using Research Agent <-> Tools (loops until finalized) |
+          -> Risk Analysis Agent                                        |
+          -> [conditional] -> Drafting Agent (only if research_and_draft)|
+          -> log_memory_node <-----------------------------------------+
           -> END
+
+Agent role mapping (Milestone 3 "4 core business roles" requirement):
+    Planning          -> ManagerAgent               (agents/manager_agent.py)
+    Research           -> ToolUsingResearchAgent     (agents/tool_using_research_agent.py)
+    Analysis           -> RiskAnalysisAgent          (agents/risk_analysis_agent.py)
+    Decision/Drafting  -> DraftingAgent              (agents/drafting_agent.py)
+These are the EXACT existing agent classes - nothing was renamed. The
+Manager Agent already does the "planning" job (deciding what workflow path
+this request needs), so Milestone 3 extends it and the graph around it
+rather than introducing a redundant 5th "PlanningAgent" class.
 
 Beginner notes:
 - `tools_condition` is a prebuilt LangGraph helper: it looks at the last
-  message and returns "tools" if the LLM asked to call a tool, or "END"
-  (well, a special marker) if it gave a final text answer instead. This
-  is what creates the agent <-> tools loop.
+  message and returns "tools" if the LLM asked to call a tool, or a
+  final-answer marker otherwise. This is what creates the agent <-> tools
+  loop.
 - Retries: LLM/API calls can fail transiently (rate limits, timeouts). We
   wrap the risky calls in a small retry helper so one flaky network blip
   doesn't kill the whole pipeline.
@@ -24,19 +50,22 @@ Beginner notes:
 """
 
 import time
+import uuid
 import logging
 from typing import TypedDict, List, Dict, Any, Optional, Annotated
 
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
-from langchain_core.messages import AnyMessage, AIMessage
+from langchain_core.messages import AnyMessage, AIMessage, HumanMessage
 
 from agents.manager_agent import ManagerAgent
 from agents.tool_using_research_agent import ToolUsingResearchAgent
 from agents.risk_analysis_agent import RiskAnalysisAgent
 from agents.drafting_agent import DraftingAgent
 from tools import ALL_TOOLS
+from memory.checkpointer import get_checkpointer, get_thread_config
+from memory.long_term_memory import log_decision_outcome
 
 logger = logging.getLogger("compliance_workflow")
 logging.basicConfig(level=logging.INFO)
@@ -65,8 +94,9 @@ def with_retries(func, *args, **kwargs):
 # ---------------------------------------------------------
 class ComplianceWorkflowState(TypedDict):
     query: str
+    thread_id: str
     route: str
-    messages: Annotated[List[AnyMessage], add_messages]  # tool-calling conversation
+    messages: Annotated[List[AnyMessage], add_messages]  # tool-calling + multi-turn conversation
     research_answer: str
     risk_level: str
     key_risk_factors: str
@@ -99,8 +129,6 @@ def manager_node(state: ComplianceWorkflowState) -> ComplianceWorkflowState:
         logger.exception("Manager Agent failed after retries")
         state["errors"] = state.get("errors", []) + [f"Manager Agent error: {e}"]
         state["route"] = "research_only"  # safe fallback
-    if not state.get("messages"):
-        state["messages"] = _research_agent.start(state["query"])
     return state
 
 
@@ -170,6 +198,32 @@ def drafting_node(state: ComplianceWorkflowState) -> ComplianceWorkflowState:
     return state
 
 
+def log_memory_node(state: ComplianceWorkflowState) -> ComplianceWorkflowState:
+    """
+    Milestone 3 - Long-Term Memory: persists this run's outcome into the
+    audit-log vector store (memory/long_term_memory.py), regardless of
+    which path the run took (research-only, drafted, or out-of-scope) -
+    every completed run becomes part of the searchable audit history.
+    A logging failure is recorded as a soft error; it never blocks the
+    user from getting their actual result.
+    """
+    try:
+        log_decision_outcome(
+            thread_id=state.get("thread_id", "unknown-thread"),
+            query=state.get("query", ""),
+            route=state.get("route", ""),
+            risk_level=state.get("risk_level", ""),
+            key_risk_factors=state.get("key_risk_factors", ""),
+            recommended_urgency=state.get("recommended_urgency", ""),
+            research_answer=state.get("research_answer", ""),
+            had_draft=bool(state.get("draft")),
+        )
+    except Exception as e:
+        logger.exception("Failed to write audit log entry")
+        state["errors"] = state.get("errors", []) + [f"Audit logging error: {e}"]
+    return state
+
+
 # ---------------------------------------------------------
 # Conditional edges
 # ---------------------------------------------------------
@@ -192,7 +246,7 @@ def _after_research_condition(state: ComplianceWorkflowState) -> str:
 def _route_decision(state: ComplianceWorkflowState) -> str:
     if state["route"] == "research_and_draft":
         return "drafting_agent"
-    return "end"
+    return "log_memory"
 
 
 def _after_manager_condition(state: ComplianceWorkflowState) -> str:
@@ -214,6 +268,7 @@ def build_workflow():
     graph.add_node("finalize_research", finalize_research_node)
     graph.add_node("risk_analysis", risk_node)
     graph.add_node("drafting_agent", drafting_node)
+    graph.add_node("log_memory", log_memory_node)
 
     graph.set_entry_point("manager")
     graph.add_conditional_edges(
@@ -221,7 +276,7 @@ def build_workflow():
         _after_manager_condition,
         {"out_of_scope": "out_of_scope", "research_agent": "research_agent"},
     )
-    graph.add_edge("out_of_scope", END)
+    graph.add_edge("out_of_scope", "log_memory")
 
     graph.add_conditional_edges(
         "research_agent",
@@ -235,11 +290,14 @@ def build_workflow():
     graph.add_conditional_edges(
         "risk_analysis",
         _route_decision,
-        {"drafting_agent": "drafting_agent", "end": END},
+        {"drafting_agent": "drafting_agent", "log_memory": "log_memory"},
     )
-    graph.add_edge("drafting_agent", END)
+    graph.add_edge("drafting_agent", "log_memory")
+    graph.add_edge("log_memory", END)
 
-    return graph.compile()
+    # Milestone 3: compile WITH a checkpointer so thread_id-scoped runs
+    # retain multi-turn conversational memory (short-term memory).
+    return graph.compile(checkpointer=get_checkpointer())
 
 
 _compiled_workflow = None
@@ -252,13 +310,12 @@ def get_workflow():
     return _compiled_workflow
 
 
-def run_compliance_workflow(query: str) -> ComplianceWorkflowState:
-    """Main entry point: runs a query through the full multi-agent + tools workflow."""
-    workflow = get_workflow()
-    initial_state: ComplianceWorkflowState = {
+def _build_initial_state(query: str, thread_id: str) -> ComplianceWorkflowState:
+    return {
         "query": query,
+        "thread_id": thread_id,
         "route": "",
-        "messages": [],
+        "messages": [HumanMessage(content=query)],
         "research_answer": "",
         "risk_level": "",
         "key_risk_factors": "",
@@ -266,29 +323,62 @@ def run_compliance_workflow(query: str) -> ComplianceWorkflowState:
         "draft": None,
         "errors": [],
     }
-    return workflow.invoke(initial_state)
 
 
-def stream_compliance_workflow(query: str):
+def run_compliance_workflow(query: str, thread_id: Optional[str] = None) -> ComplianceWorkflowState:
+    """
+    Main entry point: runs a query through the full multi-agent + tools +
+    memory workflow.
+
+    thread_id: pass the SAME thread_id across multiple calls to give the
+    agents memory of the earlier turns in that conversation (short-term
+    memory). Omit it (or pass None) for a one-off, isolated query - a
+    fresh thread_id is generated automatically, matching the old
+    single-turn behavior exactly.
+    """
+    workflow = get_workflow()
+    resolved_thread_id = thread_id or str(uuid.uuid4())
+    initial_state = _build_initial_state(query, resolved_thread_id)
+    config = get_thread_config(resolved_thread_id)
+    return workflow.invoke(initial_state, config=config)
+
+
+def stream_compliance_workflow(query: str, thread_id: Optional[str] = None):
     """
     Generator version used by the FastAPI backend for real-time progress
     logs: yields (node_name, state_snapshot) after each node completes.
+    Same thread_id semantics as run_compliance_workflow().
     """
     workflow = get_workflow()
-    initial_state: ComplianceWorkflowState = {
-        "query": query,
-        "route": "",
-        "messages": [],
-        "research_answer": "",
-        "risk_level": "",
-        "key_risk_factors": "",
-        "recommended_urgency": "",
-        "draft": None,
-        "errors": [],
-    }
-    for step in workflow.stream(initial_state):
+    resolved_thread_id = thread_id or str(uuid.uuid4())
+    initial_state = _build_initial_state(query, resolved_thread_id)
+    config = get_thread_config(resolved_thread_id)
+
+    for step in workflow.stream(initial_state, config=config):
         for node_name, node_state in step.items():
             yield node_name, node_state
+
+
+def get_thread_history(thread_id: str) -> List[Dict[str, Any]]:
+    """
+    Milestone 3 - reads back the short-term conversational memory for a
+    thread: every human/AI message exchanged so far, for display in the
+    dashboard's conversation panel.
+    """
+    workflow = get_workflow()
+    config = get_thread_config(thread_id)
+    snapshot = workflow.get_state(config)
+    if not snapshot or not snapshot.values:
+        return []
+
+    messages = snapshot.values.get("messages", [])
+    history = []
+    for m in messages:
+        role = getattr(m, "type", "unknown")
+        content = getattr(m, "content", "")
+        if role in ("human", "ai") and content:
+            history.append({"role": role, "content": content})
+    return history
 
 
 if __name__ == "__main__":

@@ -139,6 +139,21 @@ def _patch_all_agent_llms(stack: ExitStack):
     return mocks
 
 
+def _patch_audit_logging_after_reload(stack: ExitStack, wf_module):
+    """
+    Milestone 3 note: log_decision_outcome must be patched AFTER
+    importlib.reload(wf), not before. reload() re-executes
+    `from memory.long_term_memory import log_decision_outcome` at the top
+    of graph/workflow.py, which rebinds a fresh, unpatched reference and
+    silently undoes a patch applied earlier - a classic patch-vs-reload
+    ordering gotcha. Call this right after reload() in every test that
+    runs the full workflow (audit logging is a universal side effect of
+    every completed run as of Milestone 3, not something these
+    tool/routing tests are meant to exercise).
+    """
+    stack.enter_context(patch.object(wf_module, "log_decision_outcome", return_value="fake-entry-id"))
+
+
 def test_tool_call_executes_real_tool_and_feeds_result_back():
     """
     Confirms that when the LLM 'decides' to call a tool, the graph runs
@@ -164,6 +179,7 @@ def test_tool_call_executes_real_tool_and_feeds_result_back():
         )
 
         importlib.reload(wf)
+        _patch_audit_logging_after_reload(stack, wf)
         result = wf.run_compliance_workflow("Assess this clause")
 
         tool_messages = [m for m in result["messages"] if getattr(m, "type", "") == "tool"]
@@ -186,6 +202,7 @@ def test_manager_failure_falls_back_without_crashing():
         )
 
         importlib.reload(wf)
+        _patch_audit_logging_after_reload(stack, wf)
         result = wf.run_compliance_workflow("Test query")
 
         assert result["route"] == "research_only"  # safe fallback, not a crash
@@ -218,6 +235,7 @@ def test_tool_loop_respects_max_iteration_safety_cap():
         )
 
         importlib.reload(wf)
+        _patch_audit_logging_after_reload(stack, wf)
         result = wf.run_compliance_workflow("test loop protection")
 
         tool_call_msgs = [m for m in result["messages"] if getattr(m, "tool_calls", None)]

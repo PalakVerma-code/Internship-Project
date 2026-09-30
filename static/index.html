@@ -35,6 +35,26 @@
   .trace-panel { padding:16px; border:1px solid var(--line); border-radius:12px; background:var(--surface); } .trace-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; } .trace-item { padding:12px; border-radius:9px; background:var(--soft); } .trace-label { display:block; margin-bottom:5px; color:var(--muted); font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; } .trace-value { color:var(--ink); font-size:13px; font-weight:700; } .trace-value.good { color:var(--teal); } .trace-value.review { color:#b87925; } .agent-path { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; } .agent-step { padding:6px 9px; border:1px solid var(--line); border-radius:999px; color:var(--teal); background:var(--panel); font-size:11px; font-weight:700; } .agent-arrow { color:var(--muted); align-self:center; font-size:12px; } hr { border:0; border-top:1px solid var(--line); margin:16px 0; }
   #resultsPanel { animation:reveal .4s ease-out; } @keyframes reveal { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } } #resultsPanel .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; } #riskCard,#resultsPanel .grid > div { border-radius:12px; padding:16px; min-height:94px; }
   .risk-low { background:#e3f4e8; color:#206b42; border-color:#abd9b9; } .risk-medium { background:#fff2d9; color:#8a5b1d; border-color:#edcf91; } .risk-high { background:#fce4e1; color:#9a3f35; border-color:#e7b0aa; } .risk-unknown { background:var(--soft); color:var(--muted); border-color:var(--line); }
+  .memory-msg { padding:10px 12px; border-radius:12px; background:var(--soft); border:1px solid var(--line); } .memory-msg.human { border-left:3px solid var(--teal); background:rgba(12,113,107,.04); } .memory-msg.ai { border-left:3px solid rgba(102,115,125,.8); background:rgba(148,163,184,.04); } .memory-msg .role { display:block; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
+  .memory-content { display:block; }
+  .memory-preview, .memory-full { white-space:pre-wrap; word-break:break-word; color:var(--ink); line-height:1.5; }
+  .memory-preview { display:block; }
+  .memory-full { display:none; }
+  .memory-msg.expanded .memory-preview { display:none; }
+  .memory-msg.expanded .memory-full { display:block; }
+  .memory-toggle { margin-top:8px; background:transparent; color:var(--teal); border:1px solid var(--line); padding:4px 9px; font-size:11px; border-radius:999px; }
+  .memory-toggle:hover { box-shadow:none; transform:none; background:var(--mint); }
+  .memory-shell { display:flex; flex-direction:column; gap:12px; }
+  .memory-tabs { display:flex; gap:8px; padding:6px; border:1px solid var(--line); border-radius:12px; background:var(--soft); }
+  .memory-tab-btn { flex:1; border-radius:10px; background:transparent; color:var(--muted); border:0; padding:9px 10px; font-weight:700; }
+  .memory-tab-btn.active { background:var(--panel); color:var(--ink); box-shadow:0 1px 2px rgba(15,23,42,.08); border:1px solid var(--line); }
+  .memory-panel { display:none; }
+  .memory-panel.active { display:block; }
+  .memory-search-wrap { display:flex; gap:8px; margin-bottom:10px; }
+  .memory-search-wrap input { flex:1; border:1px solid var(--line); border-radius:10px; background:var(--surface); color:var(--ink); padding:10px 12px; font-size:13px; }
+  .memory-search-wrap button { padding:10px 12px; border-radius:10px; }
+  .memory-list { display:flex; flex-direction:column; gap:8px; max-height:270px; overflow-y:auto; }
+  .audit-entry { padding:11px 12px; border-radius:12px; background:var(--soft); border:1px solid var(--line); cursor:pointer; transition:border-color .15s ease, background .15s ease; } .audit-entry:hover { border-color:var(--teal); background:rgba(12,113,107,.03); } .audit-entry .audit-meta { display:flex; justify-content:space-between; font-size:10px; color:var(--muted); margin-bottom:6px; gap:10px; } .audit-entry .audit-query { font-size:13px; color:var(--ink); font-weight:600; line-height:1.45; }
   .theme-toggle { display:inline-flex; align-items:center; gap:8px; margin-left:12px; padding:8px 11px; border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--ink); font-size:12px; }
   .theme-toggle:hover { box-shadow:none; transform:none; background:var(--mint); }
   .theme-icon { font-size:15px; line-height:1; }
@@ -86,6 +106,36 @@
         <h2 class="font-semibold text-slate-700 mb-3">🔍 Preview</h2>
         <iframe id="pdfPreview" class="w-full h-64 rounded-lg border border-slate-200 bg-slate-50"></iframe>
         <p class="text-xs text-slate-400 mt-2">Click a document above to preview it here.</p>
+      </div>
+
+      <!-- Memory panel: Conversation + Audit log -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div class="memory-shell">
+          <div class="flex items-center justify-between gap-3">
+            <div class="memory-tabs" aria-label="Memory panels">
+              <button type="button" class="memory-tab-btn active" data-target="conversationPanel">Conversation</button>
+              <button type="button" class="memory-tab-btn" data-target="auditPanel">Audit Log</button>
+            </div>
+            <button onclick="startNewConversation()" class="text-xs bg-white border border-slate-300 text-slate-700 px-2 py-1 rounded-lg hover:bg-slate-50 transition">New</button>
+          </div>
+
+          <div id="conversationPanel" class="memory-panel active">
+            <p id="threadIdLabel" class="text-xs text-slate-400 mb-2">No active thread yet — your first question starts one.</p>
+            <div id="conversationHistory" class="memory-list text-sm">
+              <p class="text-slate-400">Ask a question to begin a remembered conversation.</p>
+            </div>
+          </div>
+
+          <div id="auditPanel" class="memory-panel">
+            <div class="memory-search-wrap">
+              <input type="text" id="auditSearchInput" placeholder="Search past decisions..." class="w-full"/>
+              <button onclick="searchAuditLog()" class="bg-slate-800 text-white text-sm">Search</button>
+            </div>
+            <div id="auditLogList" class="memory-list text-sm">
+              <p class="text-slate-400">Loading audit log...</p>
+            </div>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -266,6 +316,8 @@ const NODE_LABELS = {
   drafting_agent: '✍️ Drafting Agent — writing document...',
 };
 
+let currentThreadId = null;
+
 async function submitQuery() {
   const query = document.getElementById('queryInput').value.trim();
   if (!query) { alert('Type a question first.'); return; }
@@ -280,14 +332,146 @@ async function submitQuery() {
     const res = await fetch(`${API_BASE}/query`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query })
+      body: JSON.stringify({ query, thread_id: currentThreadId })
     });
     const data = await res.json();
+    currentThreadId = data.thread_id;
+    updateThreadLabel();
     pollStatus(data.job_id);
   } catch (e) {
     appendLog('❌ Failed to submit query: ' + e);
     resetSubmitButton();
   }
+}
+
+function updateThreadLabel() {
+  const label = document.getElementById('threadIdLabel');
+  if (currentThreadId) {
+    label.textContent = `Thread: ${currentThreadId.slice(0, 8)}… (follow-ups remember this conversation)`;
+  } else {
+    label.textContent = 'No active thread yet — your first question starts one.';
+  }
+}
+
+function switchMemoryTab(targetId) {
+  document.querySelectorAll('.memory-tab-btn').forEach(btn => {
+    const isActive = btn.dataset.target === targetId;
+    btn.classList.toggle('active', isActive);
+  });
+  document.getElementById('conversationPanel').classList.toggle('active', targetId === 'conversationPanel');
+  document.getElementById('auditPanel').classList.toggle('active', targetId === 'auditPanel');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.memory-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchMemoryTab(btn.dataset.target));
+  });
+});
+
+function startNewConversation() {
+  currentThreadId = null;
+  updateThreadLabel();
+  document.getElementById('conversationHistory').innerHTML =
+    '<p class="text-slate-400">Ask a question to begin a remembered conversation.</p>';
+  switchMemoryTab('conversationPanel');
+}
+
+function renderConversationMessages(messages) {
+  const container = document.getElementById('conversationHistory');
+  if (!messages || messages.length === 0) {
+    container.innerHTML = '<p class="text-slate-400">No messages yet.</p>';
+    return;
+  }
+
+  const formatMessage = (text) => {
+    const normalized = String(text || '').replace(/\r\n/g, '\n').trim();
+    const plain = normalized.replace(/\s+/g, ' ');
+    const preview = plain.length > 180 ? `${plain.slice(0, 180).trim()}…` : plain;
+    return {
+      preview,
+      full: normalized
+        .split('\n')
+        .map(line => escapeHtml(line))
+        .join('<br>') || '&nbsp;'
+    };
+  };
+
+  container.innerHTML = messages.map(m => {
+    const { preview, full } = formatMessage(m.content);
+    const isAgent = m.role === 'ai';
+    const roleLabel = m.role === 'human' ? 'You' : 'Agent';
+    return `
+      <div class="memory-msg ${m.role} ${isAgent ? 'collapsed' : 'expanded'}">
+        <span class="role">${roleLabel}</span>
+        <div class="memory-content">
+          <div class="memory-preview">${escapeHtml(preview)}</div>
+          <div class="memory-full">${full}</div>
+          <button type="button" class="memory-toggle" aria-expanded="false">Expand</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.querySelectorAll('.memory-toggle').forEach(button => {
+    button.addEventListener('click', function () {
+      const card = button.closest('.memory-msg');
+      const expanded = card.classList.toggle('expanded');
+      button.textContent = expanded ? 'Collapse' : 'Expand';
+      button.setAttribute('aria-expanded', String(expanded));
+    });
+  });
+
+  container.scrollTop = container.scrollHeight;
+}
+
+async function loadConversationHistory() {
+  if (!currentThreadId) return;
+  try {
+    const res = await fetch(`${API_BASE}/threads/${currentThreadId}/history`);
+    const data = await res.json();
+    renderConversationMessages(data.messages);
+  } catch (e) {
+    console.error('Failed to load conversation history:', e);
+  }
+}
+
+async function loadAuditLog() {
+  try {
+    const res = await fetch(`${API_BASE}/audit-log?limit=10`);
+    const data = await res.json();
+    renderAuditEntries(data.entries);
+  } catch (e) {
+    document.getElementById('auditLogList').innerHTML = '<p class="text-slate-400">Could not load audit log.</p>';
+  }
+}
+
+async function searchAuditLog() {
+  const q = document.getElementById('auditSearchInput').value.trim();
+  if (!q) { loadAuditLog(); return; }
+  try {
+    const res = await fetch(`${API_BASE}/audit-log/search?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    renderAuditEntries(data.results);
+  } catch (e) {
+    document.getElementById('auditLogList').innerHTML = '<p class="text-slate-400">Search failed.</p>';
+  }
+}
+
+function renderAuditEntries(entries) {
+  const container = document.getElementById('auditLogList');
+  if (!entries || entries.length === 0) {
+    container.innerHTML = '<p class="text-slate-400">No audit log entries yet.</p>';
+    return;
+  }
+  container.innerHTML = entries.map(e => {
+    const query = (e.query || (e.content || '').split('\n')[0].replace('Query: ', '')) || 'Untitled query';
+    const when = e.timestamp ? new Date(e.timestamp).toLocaleString() : '';
+    return `
+      <div class="audit-entry" title="${escapeHtml(e.content || '')}">
+        <div class="audit-meta"><span>${escapeHtml(e.route || '')} · ${escapeHtml(e.risk_level || '')}</span><span>${when}</span></div>
+        <div class="audit-query">${escapeHtml(query)}</div>
+      </div>`;
+  }).join('');
 }
 
 function resetSubmitButton() {
@@ -442,6 +626,11 @@ function renderResults(result, logs) {
   } else {
     document.getElementById('errorsSection').classList.add('hidden');
   }
+
+  // Milestone 3: refresh conversation memory + audit log panels now that
+  // this turn has been checkpointed and logged.
+  loadConversationHistory();
+  loadAuditLog();
 }
 
 function downloadDraft() {
@@ -456,6 +645,7 @@ function downloadDraft() {
 
 checkApiHealth();
 loadDocuments();
+loadAuditLog();
 </script>
 
 </body>
