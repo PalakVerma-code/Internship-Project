@@ -28,7 +28,7 @@ import asyncio
 import shutil
 import time
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,7 +38,8 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 load_dotenv()
-from graph.workflow import stream_compliance_workflow
+from graph.workflow import stream_compliance_workflow, get_thread_history
+from memory.long_term_memory import list_recent_decisions, search_past_decisions
 
 app = FastAPI(title="Enterprise Legal & Compliance Multi-Agent API")
 
@@ -58,16 +59,17 @@ JOBS: Dict[str, Dict[str, Any]] = {}
 
 class QueryRequest(BaseModel):
     query: str
+    thread_id: Optional[str] = None  # omit for a one-off query; reuse to continue a conversation
 
 
-def _run_workflow_job(job_id: str, query: str) -> None:
+def _run_workflow_job(job_id: str, query: str, thread_id: str) -> None:
     """
     Runs in a background thread. Streams node-by-node so the frontend can
     poll and show real progress instead of a single opaque spinner.
     """
     job = JOBS[job_id]
     try:
-        for node_name, node_state in stream_compliance_workflow(query):
+        for node_name, node_state in stream_compliance_workflow(query, thread_id=thread_id):
             timestamp = datetime.utcnow().strftime("%H:%M:%S")
             job["logs"].append({"time": timestamp, "node": node_name})
             job["latest_state"] = node_state
@@ -75,6 +77,7 @@ def _run_workflow_job(job_id: str, query: str) -> None:
         final_state = job["latest_state"]
         job["status"] = "completed"
         job["result"] = {
+            "thread_id": thread_id,
             "route": final_state.get("route"),
             "research_answer": final_state.get("research_answer"),
             "risk_level": final_state.get("risk_level"),
@@ -130,16 +133,23 @@ async def rebuild_knowledge_base():
 
 @app.post("/query")
 async def submit_query(request: QueryRequest):
-    """Starts a multi-agent workflow run in the background and returns a job_id immediately."""
+    """
+    Starts a multi-agent workflow run in the background and returns a
+    job_id immediately. If thread_id is omitted, a new one is generated
+    and returned in the response - the frontend should save it and send
+    it back on the NEXT call to continue the same conversation with
+    short-term memory intact (Milestone 3).
+    """
     if not request.query or not request.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
 
+    thread_id = request.thread_id or str(uuid.uuid4())
     job_id = str(uuid.uuid4())
     JOBS[job_id] = {"status": "running", "logs": [], "result": None, "error": None, "latest_state": None}
 
-    asyncio.create_task(asyncio.to_thread(_run_workflow_job, job_id, request.query))
+    asyncio.create_task(asyncio.to_thread(_run_workflow_job, job_id, request.query, thread_id))
 
-    return {"job_id": job_id}
+    return {"job_id": job_id, "thread_id": thread_id}
 
 
 @app.get("/status/{job_id}")
@@ -153,6 +163,41 @@ async def get_status(job_id: str):
         "result": job["result"],
         "error": job["error"],
     }
+
+
+@app.get("/threads/{thread_id}/history")
+async def thread_history(thread_id: str):
+    """
+    Milestone 3 - Short-term memory: returns the full conversation
+    (human + AI messages) held in this thread's checkpointed state, for
+    display in the dashboard's conversation memory panel.
+    """
+    history = await asyncio.to_thread(get_thread_history, thread_id)
+    return {"thread_id": thread_id, "messages": history}
+
+
+@app.get("/audit-log")
+async def audit_log(limit: int = 20):
+    """
+    Milestone 3 - Long-term memory: returns the most recent audit log
+    entries (past completed decisions), newest first, for the dashboard's
+    audit trail panel.
+    """
+    entries = await asyncio.to_thread(list_recent_decisions, limit)
+    return {"entries": entries}
+
+
+@app.get("/audit-log/search")
+async def audit_log_search(q: str, k: int = 5):
+    """
+    Milestone 3 - Long-term memory: semantic search over past audit log
+    entries, e.g. to check whether a similar compliance question has come
+    up before and how it was handled.
+    """
+    if not q or not q.strip():
+        raise HTTPException(status_code=400, detail="Query parameter 'q' cannot be empty.")
+    results = await asyncio.to_thread(search_past_decisions, q, k)
+    return {"query": q, "results": results}
 
 
 # Serve uploaded PDFs directly so the frontend can preview them
