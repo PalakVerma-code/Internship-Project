@@ -28,6 +28,7 @@ import requests
 from langchain_core.tools import tool
 
 from rag.vector_store import get_or_build_vector_store
+from memory.long_term_memory import search_past_decisions
 
 logger = logging.getLogger("compliance_tools")
 logging.basicConfig(level=logging.INFO)
@@ -251,12 +252,44 @@ def verify_corporate_entity(company_name: str, jurisdiction_code: str = "in") ->
     return f"Found {len(formatted)} matching entit{'y' if len(formatted)==1 else 'ies'}:\n" + "\n".join(formatted)
 
 
+# =====================================================================
+# TOOL 5: Long-Term Memory Search (Milestone 3 - audit log / past decisions)
+# =====================================================================
+@tool
+def search_audit_history(query: str) -> str:
+    """
+    Search the system's own audit log of PAST completed compliance
+    decisions (not the policy PDFs) for similar prior questions and how
+    they were handled - including their risk level and whether a document
+    was drafted. Use this when the user asks whether something similar
+    has come up before, or when checking for consistency with past
+    decisions would be useful. Returns an empty-history message if no
+    audit log entries exist yet.
+    """
+    try:
+        results = search_past_decisions(query, k=3)
+    except Exception as e:
+        logger.exception("search_audit_history failed")
+        return f"ERROR: Could not search audit history: {e}"
+
+    if not results:
+        return "No past audit log entries found yet - this may be one of the first queries handled by this system."
+
+    formatted = []
+    for i, entry in enumerate(results, start=1):
+        formatted.append(
+            f"[{i}] ({entry.get('timestamp', 'unknown time')})\n{entry.get('content', '')}"
+        )
+    return "\n\n".join(formatted)
+
+
 # List of all tools, used by the agent/graph layer to bind them to an LLM
 ALL_TOOLS = [
     retrieve_legal_clauses,
     search_regulatory_updates,
     calculate_compliance_risk_score,
     verify_corporate_entity,
+    search_audit_history,
 ]
 
 
