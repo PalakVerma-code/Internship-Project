@@ -31,8 +31,13 @@ class LegalResearchAgent:
                 "clearly instead of guessing.\n\n"
                 "Context:\n{context}\n\n"
                 "Query: {query}\n\n"
-                "Give a clear, well-organized answer grounded in the "
-                "context above."
+                "Answer in proportion to the query. For a simple question, "
+                "give a direct answer in no more than 3 short paragraphs or "
+                "bullets and include only the necessary source reference. "
+                "Do not restate the question, add generic background, or "
+                "turn a simple answer into a research memo. For detailed "
+                "legal analysis, provide a fuller structured answer grounded "
+                "in the context above."
             ),
         )
 

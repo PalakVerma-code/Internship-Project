@@ -38,13 +38,15 @@ logging.basicConfig(level=logging.INFO)
 # TOOL 1: Real RAG Retriever (wraps Phase 2 ChromaDB vector store)
 # =====================================================================
 @tool
-def retrieve_legal_clauses(query: str) -> str:
+def retrieve_legal_clauses(query: str, doc_id: str = "") -> str:
     """
     Search the company's indexed compliance policy documents and Indian
     legal framework PDFs for clauses relevant to the query. Use this when
     the user asks about internal policy, a specific act/law, or wants a
     grounded answer citing an actual document. Returns the most relevant
-    clauses with their source filename and page number.
+    clauses with their source filename and page number. The optional doc_id
+    is accepted for compatibility with model-generated calls; retrieval
+    searches the complete indexed collection.
     """
     try:
         store = get_or_build_vector_store()

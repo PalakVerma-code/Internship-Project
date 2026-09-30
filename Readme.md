@@ -14,9 +14,10 @@
 - `.env.example` — rename to `.env` and add your Groq API key here
 
  ## project Screenshot
-<img width="1872" height="865" alt="Screenshot 2026-09-16 184613" src="https://github.com/user-attachments/assets/b497923d-3b7c-4495-a873-832507444ad8" />
-<img width="1055" height="810" alt="Screenshot 2026-09-16 184635" src="https://github.com/user-attachments/assets/3aae0849-c958-48ce-9ced-4fd921dd04ec" />
-<img width="1137" height="866" alt="Screenshot 2026-09-16 184654" src="https://github.com/user-attachments/assets/f24e6083-fd67-429d-a3d4-cd1c51614d41" />
+<img width="1530" height="704" alt="image" src="https://github.com/user-attachments/assets/2860f58f-899d-4676-a390-83d0eb27f856" />
+<img width="1443" height="664" alt="image" src="https://github.com/user-attachments/assets/03710e9c-7cc3-4ca0-80fa-4cac76214b20" />
+<img width="432" height="528" alt="image" src="https://github.com/user-attachments/assets/73c785e5-53d4-450f-8a62-d77f2878ea11" />
+
 
 ```mermaid
 flowchart TD

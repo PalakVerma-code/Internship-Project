@@ -11,9 +11,15 @@ class ManagerAgent:
             input_variables=["query"],
             template=(
                 "Classify this query into exactly ONE route:\n"
-                "- research_only: user wants an explanation\n"
-                "- research_and_draft: user wants a document drafted\n"
-                "- out_of_scope: unrelated to legal, compliance, policy, risk, privacy, contracts, or regulation\n\n"
+                "- research_only: user wants an explanation, legal answer, issue-spotting, comparison, or analysis\n"
+                "- research_and_draft: user wants a document drafted, revised, or reviewed\n"
+                "- out_of_scope: clearly unrelated to legal, compliance, policy, risk, privacy, contracts, or business operations\n\n"
+                "This is an enterprise legal assistant. Treat questions about contracts, vendors, procurement, "
+                "employment, HR, privacy, data protection, cybersecurity, corporate governance, company law, "
+                "regulatory obligations, litigation, disputes, intellectual property, finance controls, tax, "
+                "audits, policies, due diligence, or business risk as in scope. Route them to research_only "
+                "even when the available tools do not have a perfect specialist tool; the research agent should "
+                "give a grounded answer, state limitations, and identify when human counsel is needed. "
                 "Classify by the meaning and intent of the full sentence, not by exact keywords. "
                 "Treat natural-language requests to check a company, vendor, business, registration, "
                 "incorporation, or legal status as research_only even when the user does not use formal legal terms.\n"

@@ -57,14 +57,14 @@ from typing import TypedDict, List, Dict, Any, Optional, Annotated
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
-from langchain_core.messages import AnyMessage, AIMessage, HumanMessage
+from langchain_core.messages import AnyMessage, AIMessage, HumanMessage, SystemMessage
 
 from agents.manager_agent import ManagerAgent
 from agents.tool_using_research_agent import ToolUsingResearchAgent
 from agents.risk_analysis_agent import RiskAnalysisAgent
 from agents.drafting_agent import DraftingAgent
 from tools import ALL_TOOLS
-from memory.checkpointer import get_checkpointer, get_thread_config
+from memory.checkpointer import get_checkpointer, get_thread_config, save_message, get_messages
 from memory.long_term_memory import log_decision_outcome
 
 logger = logging.getLogger("compliance_workflow")
@@ -165,7 +165,28 @@ def research_agent_node(state: ComplianceWorkflowState) -> ComplianceWorkflowSta
 def finalize_research_node(state: ComplianceWorkflowState) -> ComplianceWorkflowState:
     """Runs once the tool-calling loop is done; extracts the final text answer."""
     last_message = state["messages"][-1]
-    state["research_answer"] = getattr(last_message, "content", "") or "No answer produced."
+    answer = getattr(last_message, "content", "") or ""
+    if not answer.strip():
+        try:
+            recovery_prompt = SystemMessage(content=(
+                "Produce the final answer now. Use the available tool results "
+                "in the conversation, answer the user's question directly, "
+                "and keep a simple question to 1-3 concise paragraphs or bullets. "
+                "Do not call another tool and do not return an empty response."
+            ))
+            recovered = with_retries(
+                _research_agent.llm.invoke,
+                [recovery_prompt] + state["messages"],
+            )
+            answer = getattr(recovered, "content", "") or ""
+        except Exception as e:
+            logger.exception("Research answer recovery failed")
+            state["errors"] = state.get("errors", []) + [f"Research answer recovery error: {e}"]
+
+    state["research_answer"] = answer.strip() or (
+        "The available compliance sources did not return a usable answer. "
+        "Please try the question again or add a relevant document to the knowledge base."
+    )
     return state
 
 
@@ -338,9 +359,12 @@ def run_compliance_workflow(query: str, thread_id: Optional[str] = None) -> Comp
     """
     workflow = get_workflow()
     resolved_thread_id = thread_id or str(uuid.uuid4())
+    save_message(resolved_thread_id, "human", query)
     initial_state = _build_initial_state(query, resolved_thread_id)
     config = get_thread_config(resolved_thread_id)
-    return workflow.invoke(initial_state, config=config)
+    result = workflow.invoke(initial_state, config=config)
+    save_message(resolved_thread_id, "ai", _conversation_response(result))
+    return result
 
 
 def stream_compliance_workflow(query: str, thread_id: Optional[str] = None):
@@ -351,12 +375,33 @@ def stream_compliance_workflow(query: str, thread_id: Optional[str] = None):
     """
     workflow = get_workflow()
     resolved_thread_id = thread_id or str(uuid.uuid4())
+    save_message(resolved_thread_id, "human", query)
     initial_state = _build_initial_state(query, resolved_thread_id)
     config = get_thread_config(resolved_thread_id)
 
     for step in workflow.stream(initial_state, config=config):
         for node_name, node_state in step.items():
             yield node_name, node_state
+
+    final_state = workflow.get_state(config).values
+    save_message(resolved_thread_id, "ai", _conversation_response(final_state))
+
+
+def _conversation_response(state: Dict[str, Any]) -> str:
+    """Create the durable assistant message shown when a saved thread is reopened."""
+    sections = []
+    if state.get("research_answer"):
+        sections.append(f"Research findings:\n{state['research_answer']}")
+    if state.get("risk_level"):
+        sections.append(
+            "Risk assessment:\n"
+            f"Level: {state.get('risk_level', '')}\n"
+            f"Key factors: {state.get('key_risk_factors', '')}\n"
+            f"Urgency: {state.get('recommended_urgency', '')}"
+        )
+    if state.get("draft"):
+        sections.append(f"Drafted document:\n{state['draft']}")
+    return "\n\n".join(sections) or "No response was produced."
 
 
 def get_thread_history(thread_id: str) -> List[Dict[str, Any]]:
@@ -365,6 +410,14 @@ def get_thread_history(thread_id: str) -> List[Dict[str, Any]]:
     thread: every human/AI message exchanged so far, for display in the
     dashboard's conversation panel.
     """
+    stored_messages = get_messages(thread_id)
+    if stored_messages:
+        return [
+            {"role": message.get("role", ""), "content": message.get("content", "")}
+            for message in stored_messages
+            if message.get("role") in ("human", "ai") and message.get("content")
+        ]
+
     workflow = get_workflow()
     config = get_thread_config(thread_id)
     snapshot = workflow.get_state(config)

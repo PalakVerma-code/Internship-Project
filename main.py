@@ -30,14 +30,17 @@ import time
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from supabase_client import supabase
 
 load_dotenv()
+
 from graph.workflow import stream_compliance_workflow, get_thread_history
 from memory.long_term_memory import list_recent_decisions, search_past_decisions
 
