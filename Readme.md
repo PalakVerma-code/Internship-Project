@@ -328,4 +328,171 @@ Check internet access, company spelling, and jurisdiction. The external registry
 ### The agent reports a Groq error
 
 Confirm that `.env` contains a valid `GROQ_API_KEY` and that the virtual environment is active before starting Uvicorn.
+
+## Milestone 3 - Agent Coordination and Persistent Memory
+
+Milestone 3 extends the Milestone 2 workflow with coordinated agent handoffs, short-term conversation memory, long-term audit memory, and a dashboard memory interface.
+
+### Milestone 3 goals
+
+- Coordinate specialized agents through a LangGraph workflow.
+- Continue a conversation by reusing the same `thread_id`.
+- Save conversation messages for later retrieval.
+- Save completed compliance decisions in a searchable audit log.
+- Let users reopen an earlier conversation from the Audit Log.
+- Preserve the existing research, tool-calling, risk, and drafting workflow.
+
+### Agent role mapping
+
+| Role | Agent | Responsibility |
+|---|---|---|
+| Planning | `ManagerAgent` | Classifies the request and selects the workflow route. |
+| Research | `ToolUsingResearchAgent` | Selects tools, gathers evidence, and produces research findings. |
+| Analysis | `RiskAnalysisAgent` | Produces risk level, key factors, and urgency. |
+| Decision/Drafting | `DraftingAgent` | Creates a formal document when the user requests one. |
+
+The Manager Agent performs the planning role, so Milestone 3 does not add a redundant fifth planning agent.
+
+### LangGraph workflow
+
+The workflow is defined in `graph/workflow.py`:
+
+```text
+START
+   |
+   v
+Manager Agent
+   |-- out_of_scope ----------> log_memory -> END
+   |
+   v
+Tool-Using Research Agent <--> ToolNode
+   |
+   v
+Finalize Research
+   |
+   v
+Risk Analysis Agent
+   |-- research_only ---------> log_memory -> END
+   |
+   v
+Drafting Agent
+   |
+   v
+log_memory -> END
+```
+
+The Research Agent can loop through the `ToolNode` several times. It may retrieve internal clauses, search current regulations, calculate contract risk, or verify a company before producing its final answer. `MAX_TOOL_ITERATIONS` prevents an accidental infinite tool loop.
+
+### Short-term conversation memory
+
+Short-term memory keeps messages within a conversation thread. The frontend sends the current `thread_id` with follow-up queries. The same ID allows the workflow to continue the same conversation, while clicking **New** creates a fresh thread without deleting old conversations.
+
+The implementation is in `memory/checkpointer.py` and `graph/workflow.py`:
+
+- LangGraph uses `MemorySaver` by default for the active process.
+- `SqliteSaver` can be enabled with `USE_SQLITE_MEMORY=true`.
+- Human and assistant messages are also persisted through the Supabase `threads` and `messages` tables.
+- `GET /threads/{thread_id}/history` returns the saved conversation for the dashboard.
+
+### Long-term audit memory
+
+Long-term memory stores completed workflow decisions separately from the conversation transcript. The Supabase `audit_logs` table stores:
+
+- Original query
+- `thread_id`
+- Selected route
+- Risk level
+- Key risk factors
+- Recommended urgency
+- Research summary
+- Whether a draft was produced
+
+This logic is implemented in `memory/long_term_memory.py`. Every completed route, including an out-of-scope request, passes through `log_memory` before the workflow ends.
+
+### Supabase configuration
+
+The current Milestone 3 persistence design uses Supabase for application memory:
+
+```text
+Supabase:
+   threads
+   messages
+   audit_logs
+```
+
+The current document knowledge base remains local for the demo:
+
+```text
+documents/*.pdf
+chroma_db/
+```
+
+Therefore, the PDF retrieval tool still uses local ChromaDB, while conversation and audit memory use Supabase. Migrating PDF storage and embeddings to Supabase Storage and pgvector is a separate future enhancement.
+
+### New API endpoints
+
+| Method | Endpoint | Milestone 3 purpose |
+|---|---|---|
+| `GET` | `/threads/{thread_id}/history` | Loads a conversation thread. |
+| `GET` | `/audit-log` | Lists recent completed decisions. |
+| `GET` | `/audit-log/search` | Searches previous audit decisions. |
+
+The existing `/query` endpoint accepts an optional `thread_id` and returns the new or reused thread ID with the background job ID.
+
+### Dashboard memory features
+
+The dashboard in `static/index.html` provides:
+
+- Conversation and Audit Log tabs.
+- Expand/collapse controls for long messages.
+- A New Conversation button.
+- Search for previous audit decisions.
+- Open conversation controls for saved audit entries.
+- Live workflow agent status cards.
+- Execution logs showing tool calls and workflow nodes.
+
+Clicking **New** clears only the active conversation view. Previous threads remain available through the Audit Log.
+
+### Milestone 3 demonstration
+
+Start the application:
+
+```powershell
+uvicorn main:app --reload --port 8000
+```
+
+Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/), then test an internal-policy query:
+
+```text
+According to our internal compliance policy, what is the required response process after a data breach?
+```
+
+The expected execution flow is:
+
+```text
+Manager Agent
+Research Agent
+Executing tool call
+Research finalized
+Risk Analysis Agent
+log_memory
+```
+
+The Decision Trace should show a tool execution and internal evidence. The result should also appear in Conversation Memory and Audit Log.
+
+For a drafting flow, use:
+
+```text
+Draft a formal breach notification notice based on our internal compliance policy.
+```
+
+This should additionally run the Drafting Agent and display the generated document.
+
+### Milestone 3 limitations
+
+- The local ChromaDB knowledge base is not yet stored in Supabase.
+- The in-memory FastAPI job dictionary is lost when the server restarts.
+- The default LangGraph checkpointer is process-local unless SQLite memory is enabled.
+- Agents coordinate through shared LangGraph state and handoffs rather than direct agent-to-agent messaging.
+- The system supports legal research and compliance workflow assistance; final legal decisions require human review.
  
