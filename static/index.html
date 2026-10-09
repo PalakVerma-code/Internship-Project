@@ -113,10 +113,11 @@
 
       <!-- Document upload / knowledge base -->
       <div id="knowledgeBase" class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-        <h2 class="font-semibold text-slate-700 mb-3">📄 Knowledge Base</h2>
+        <h2 class="font-semibold text-slate-700 mb-1">📚 Knowledge Base</h2>
+        <p class="text-xs text-slate-500 mb-3">Upload reference policies and regulations. These documents are indexed once and used as the organization’s compliance knowledge base.</p>
         <input type="file" id="pdfInput" accept="application/pdf"
                class="block w-full text-sm text-slate-600 mb-3 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"/>
-        <button onclick="uploadPdf()" class="w-full bg-slate-800 text-white text-sm py-2 rounded-lg hover:bg-slate-700 transition">Upload PDF</button>
+        <button onclick="uploadPdf()" class="w-full bg-slate-800 text-white text-sm py-2 rounded-lg hover:bg-slate-700 transition">Upload Reference PDF</button>
         <button onclick="rebuildKB()" class="w-full mt-2 bg-white border border-slate-300 text-slate-700 text-sm py-2 rounded-lg hover:bg-slate-50 transition">🔄 Rebuild Index</button>
         <div id="uploadMsg" class="text-xs mt-2 text-slate-500"></div>
 
@@ -124,6 +125,19 @@
           <h3 class="text-xs font-semibold text-slate-500 uppercase mb-2">Indexed Documents</h3>
           <ul id="docList" class="text-sm text-slate-600 space-y-1"></ul>
         </div>
+      </div>
+
+      <div id="caseDocuments" class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <h2 class="font-semibold text-slate-700 mb-1">📄 Case Documents</h2>
+        <p class="text-xs text-slate-500 mb-3">Upload the agreement or contract for this review. It belongs to the current case and is analyzed against the reference policies above.</p>
+        <input type="file" id="casePdfInput" accept="application/pdf"
+               class="block w-full text-sm text-slate-600 mb-3 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"/>
+        <button onclick="uploadCasePdf()" class="w-full bg-teal-700 text-white text-sm py-2 rounded-lg hover:bg-teal-800 transition">Upload Case Agreement</button>
+        <div id="caseUploadMsg" class="text-xs mt-2 text-slate-500"></div>
+        <label for="caseDocumentSelect" class="block text-xs font-semibold text-slate-500 uppercase mt-4 mb-2">Selected document for next review</label>
+        <select id="caseDocumentSelect" class="w-full border border-slate-300 rounded-lg p-2 text-sm">
+          <option value="">No case document selected</option>
+        </select>
       </div>
 
       <!-- PDF preview -->
@@ -311,6 +325,42 @@ async function uploadPdf() {
   }
 }
 
+async function loadCaseDocuments() {
+  try {
+    const res = await fetch(`${API_BASE}/case-documents`);
+    const data = await res.json();
+    const select = document.getElementById('caseDocumentSelect');
+    select.innerHTML = '<option value="">No case document selected</option>';
+    data.documents.forEach(name => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      select.appendChild(option);
+    });
+  } catch (e) {
+    console.error('Failed to load case documents:', e);
+  }
+}
+
+async function uploadCasePdf() {
+  const input = document.getElementById('casePdfInput');
+  if (!input.files.length) { alert('Choose the agreement or contract PDF first.'); return; }
+  const formData = new FormData();
+  formData.append('file', input.files[0]);
+  const message = document.getElementById('caseUploadMsg');
+  message.textContent = 'Uploading case document...';
+  try {
+    const res = await fetch(`${API_BASE}/case-documents`, { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Upload failed');
+    message.textContent = `${data.filename} is ready. Select it before running a review.`;
+    await loadCaseDocuments();
+    document.getElementById('caseDocumentSelect').value = data.filename;
+  } catch (e) {
+    message.textContent = 'Case upload failed: ' + e.message;
+  }
+}
+
 async function rebuildKB() {
   document.getElementById('uploadMsg').textContent = 'Rebuilding knowledge base... this can take a moment.';
   try {
@@ -377,7 +427,11 @@ async function submitQuery() {
     const res = await fetch(`${API_BASE}/query`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, thread_id: currentThreadId })
+      body: JSON.stringify({
+        query,
+        thread_id: currentThreadId,
+        case_document: document.getElementById('caseDocumentSelect').value || null
+      })
     });
     const data = await res.json();
     currentThreadId = data.thread_id;
@@ -602,12 +656,24 @@ function renderMarkdown(markdown) {
 }
 
 let loggedNodeCount = 0;
+const MAX_POLL_DURATION_MS = 90000;
+let pollStartedAt = 0;
 
 function pollStatus(jobId) {
   loggedNodeCount = 0;
+  pollStartedAt = Date.now();
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(async () => {
     try {
+      if (Date.now() - pollStartedAt > MAX_POLL_DURATION_MS) {
+        clearInterval(pollTimer);
+        appendLog('⚠️ The workflow is taking too long. Please retry or narrow the question.');
+        document.querySelectorAll('.agent-status-card[data-state="Running"]').forEach(card => {
+          setAgentStatus(card.dataset.agentStatus, 'Timed out');
+        });
+        resetSubmitButton();
+        return;
+      }
       const res = await fetch(`${API_BASE}/status/${jobId}`);
       const data = await res.json();
 
@@ -718,6 +784,7 @@ function downloadDraft() {
 
 checkApiHealth();
 loadDocuments();
+loadCaseDocuments();
 loadAuditLog();
 </script>
 

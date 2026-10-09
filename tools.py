@@ -279,8 +279,15 @@ def search_audit_history(query: str) -> str:
 
     formatted = []
     for i, entry in enumerate(results, start=1):
+        query_text = entry.get("query", "")
+        summary = entry.get("research_summary", "")
+        risk_level = entry.get("risk_level", "Unknown")
+        draft_produced = entry.get("draft_produced", False)
         formatted.append(
-            f"[{i}] ({entry.get('timestamp', 'unknown time')})\n{entry.get('content', '')}"
+            f"[{i}] ({entry.get('created_at', 'unknown time')})\n"
+            f"Question: {query_text}\n"
+            f"Risk: {risk_level}; Draft produced: {draft_produced}\n"
+            f"Summary: {summary}"
         )
     return "\n\n".join(formatted)
 

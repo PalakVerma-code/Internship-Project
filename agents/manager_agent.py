@@ -1,4 +1,5 @@
 """Phase 3 - Manager/Router Agent"""
+import os
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 
@@ -6,7 +7,8 @@ from langchain_core.prompts import PromptTemplate
 class ManagerAgent:
     VALID_ROUTES = {"research_only", "research_and_draft", "out_of_scope"}
     def __init__(self, model_name: str = "openai/gpt-oss-120b"):
-        self.llm = ChatGroq(model=model_name, temperature=0)
+        timeout = int(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
+        self.llm = ChatGroq(model=model_name, temperature=0, timeout=timeout)
         self.prompt_template = PromptTemplate(
             input_variables=["query"],
             template=(

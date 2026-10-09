@@ -22,6 +22,8 @@ import os
 from unittest.mock import MagicMock, patch
 from contextlib import ExitStack
 
+from langchain_core.messages import AIMessage
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 os.environ.setdefault("GROQ_API_KEY", "fake_key_for_testing")
@@ -109,14 +111,17 @@ def _reload_workflow_with_mocked_agents(llm_responses):
 
     for module_path in [
         "agents.manager_agent.ChatGroq",
-        "agents.legal_research_agent.ChatGroq",
+        "agents.tool_using_research_agent.ChatGroq",
         "agents.risk_analysis_agent.ChatGroq",
         "agents.drafting_agent.ChatGroq",
     ]:
         mock_cls = stack.enter_context(patch(module_path))
         mock_cls.return_value = mock_llm_instance
 
+    mock_llm_instance.bind_tools.return_value = mock_llm_instance
+
     importlib.reload(wf)
+    stack.enter_context(patch.object(wf, "log_decision_outcome", return_value="fake-entry-id"))
     return wf, stack
 
 
@@ -124,7 +129,7 @@ def test_full_workflow_drafts_when_routed_to_draft():
     with patch("agents.legal_research_agent.get_or_build_vector_store", return_value=_make_fake_vector_store()):
         wf, stack = _reload_workflow_with_mocked_agents([
             MagicMock(content="research_and_draft"),  # manager
-            MagicMock(content="Research findings here."),  # research
+            AIMessage(content="Research findings here."),  # research
             MagicMock(content="Risk Level: High\nKey Risk Factors: X\nRecommended Urgency: Y"),  # risk
             MagicMock(content="Drafted memo text."),  # drafting
         ])
@@ -140,7 +145,7 @@ def test_full_workflow_skips_draft_when_research_only():
     with patch("agents.legal_research_agent.get_or_build_vector_store", return_value=_make_fake_vector_store()):
         wf, stack = _reload_workflow_with_mocked_agents([
             MagicMock(content="research_only"),  # manager
-            MagicMock(content="Research findings here."),  # research
+            AIMessage(content="Research findings here."),  # research
             MagicMock(content="Risk Level: Low\nKey Risk Factors: X\nRecommended Urgency: Y"),  # risk
             # NOTE: only 3 responses - if drafting agent incorrectly runs,
             # this test will fail with a StopIteration error, proving the

@@ -1,11 +1,27 @@
 __pycache__/
+*.py[cod]
+*$py.class
 .env
+.env.*
+!.env.example
 venv/
 chroma_db/
 memory_db/
 .pytest_cache/
 .coverage
+htmlcov/
+.hypothesis/
+*.log
 checkpoints.sqlite
 checkpoints.sqlite-shm
 checkpoints.sqlite-wal
 requirementss.txt
+
+# Local policy and case uploads. Production uses Supabase Storage.
+documents/*.pdf
+documents/cases/
+
+# Local build and tool artifacts
+build/
+dist/
+*.egg-info/

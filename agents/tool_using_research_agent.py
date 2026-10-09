@@ -19,6 +19,7 @@ Beginner notes on "tool calling":
   what makes this an "agent" rather than a single LLM call.
 """
 
+import os
 from typing import List
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage, AnyMessage
@@ -56,7 +57,8 @@ class ToolUsingResearchAgent:
     """Wraps a Groq LLM bound to the 4 real tools, for use as a LangGraph node."""
 
     def __init__(self, model_name: str = "openai/gpt-oss-120b"):
-        self.llm = ChatGroq(model=model_name, temperature=0.1)
+        timeout = int(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
+        self.llm = ChatGroq(model=model_name, temperature=0.1, timeout=timeout)
         self.llm_with_tools = self.llm.bind_tools(ALL_TOOLS)
 
     def invoke(self, messages: List[AnyMessage]) -> AnyMessage:

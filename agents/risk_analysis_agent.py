@@ -1,4 +1,5 @@
 """Phase 3 - Risk Analysis Agent"""
+import os
 from typing import Dict, Any
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
@@ -6,7 +7,8 @@ from langchain_core.prompts import PromptTemplate
 
 class RiskAnalysisAgent:
     def __init__(self, model_name: str = "openai/gpt-oss-120b"):
-        self.llm = ChatGroq(model=model_name, temperature=0.1)
+        timeout = int(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
+        self.llm = ChatGroq(model=model_name, temperature=0.1, timeout=timeout)
         self.prompt_template = PromptTemplate(
             input_variables=["query", "research_findings"],
             template=(

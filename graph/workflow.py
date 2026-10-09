@@ -75,6 +75,24 @@ RETRY_DELAY_SECONDS = 1.5
 MAX_TOOL_ITERATIONS = 6  # hard cap so a confused agent can't loop forever
 
 
+def merge_messages(current: List[AnyMessage], updates: List[AnyMessage]) -> List[AnyMessage]:
+    """Apply message updates while filtering repeated checkpoint replays."""
+    merged = add_messages(current, updates)
+    seen = set()
+    unique = []
+    for message in merged:
+        key = (
+            getattr(message, "type", ""),
+            getattr(message, "content", ""),
+            str(getattr(message, "tool_calls", "")),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(message)
+    return unique
+
+
 def with_retries(func, *args, **kwargs):
     """Small retry wrapper for flaky LLM/API calls. Raises the last error if all retries fail."""
     last_error = None
@@ -96,7 +114,7 @@ class ComplianceWorkflowState(TypedDict):
     query: str
     thread_id: str
     route: str
-    messages: Annotated[List[AnyMessage], add_messages]  # tool-calling + multi-turn conversation
+    messages: Annotated[List[AnyMessage], merge_messages]  # tool-calling + multi-turn conversation
     research_answer: str
     risk_level: str
     key_risk_factors: str
@@ -120,30 +138,34 @@ _tool_node = ToolNode(ALL_TOOLS)
 # ---------------------------------------------------------
 def manager_node(state: ComplianceWorkflowState) -> ComplianceWorkflowState:
     if not state.get("query") or not state["query"].strip():
-        state["errors"] = state.get("errors", []) + ["Empty query received by Manager Agent."]
-        state["route"] = "research_only"
-        return state
+        return {
+            "errors": state.get("errors", []) + ["Empty query received by Manager Agent."],
+            "route": "research_only",
+        }
     try:
-        state["route"] = with_retries(_manager.route, state["query"])
+        route = with_retries(_manager.route, state["query"])
+        return {"route": route}
     except Exception as e:
         logger.exception("Manager Agent failed after retries")
-        state["errors"] = state.get("errors", []) + [f"Manager Agent error: {e}"]
-        state["route"] = "research_only"  # safe fallback
-    return state
+        return {
+            "errors": state.get("errors", []) + [f"Manager Agent error: {e}"],
+            "route": "research_only",
+        }
 
 
 def out_of_scope_node(state: ComplianceWorkflowState) -> ComplianceWorkflowState:
     """Stops unrelated questions before research, tools, risk, or drafting."""
-    state["research_answer"] = (
+    return {
+        "research_answer": (
         "This question is outside the scope of the legal and compliance "
         "workflow. Please ask about company policy, contracts, privacy, "
         "regulatory obligations, compliance risk, or related documents."
-    )
-    state["risk_level"] = "Not assessed"
-    state["key_risk_factors"] = "No legal or compliance assessment was performed."
-    state["recommended_urgency"] = "No action recommended for this out-of-scope request."
-    state["draft"] = None
-    return state
+        ),
+        "risk_level": "Not assessed",
+        "key_risk_factors": "No legal or compliance assessment was performed.",
+        "recommended_urgency": "No action recommended for this out-of-scope request.",
+        "draft": None,
+    }
 
 
 def research_agent_node(state: ComplianceWorkflowState) -> ComplianceWorkflowState:
@@ -152,14 +174,13 @@ def research_agent_node(state: ComplianceWorkflowState) -> ComplianceWorkflowSta
         response = with_retries(_research_agent.invoke, state["messages"])
     except Exception as e:
         logger.exception("Research Agent failed after retries")
-        state["errors"] = state.get("errors", []) + [f"Research Agent error: {e}"]
+        errors = state.get("errors", []) + [f"Research Agent error: {e}"]
         # Fall back to a plain text message so the graph can still terminate cleanly
         response = AIMessage(content=(
             "I was unable to complete research due to a technical error. "
             "Please consult internal compliance documentation directly."
         ))
-    state["messages"] = [response]
-    return state
+    return {"messages": [response], "errors": locals().get("errors", state.get("errors", []))}
 
 
 def finalize_research_node(state: ComplianceWorkflowState) -> ComplianceWorkflowState:
@@ -181,28 +202,33 @@ def finalize_research_node(state: ComplianceWorkflowState) -> ComplianceWorkflow
             answer = getattr(recovered, "content", "") or ""
         except Exception as e:
             logger.exception("Research answer recovery failed")
-            state["errors"] = state.get("errors", []) + [f"Research answer recovery error: {e}"]
+            errors = state.get("errors", []) + [f"Research answer recovery error: {e}"]
 
-    state["research_answer"] = answer.strip() or (
-        "The available compliance sources did not return a usable answer. "
-        "Please try the question again or add a relevant document to the knowledge base."
-    )
-    return state
+    return {
+        "research_answer": answer.strip() or (
+            "The available compliance sources did not return a usable answer. "
+            "Please try the question again or add a relevant document to the knowledge base."
+        ),
+        "errors": locals().get("errors", state.get("errors", [])),
+    }
 
 
 def risk_node(state: ComplianceWorkflowState) -> ComplianceWorkflowState:
     try:
         result = with_retries(_risk_analyst.analyze, state["query"], state["research_answer"])
-        state["risk_level"] = result["risk_level"]
-        state["key_risk_factors"] = result["key_risk_factors"]
-        state["recommended_urgency"] = result["recommended_urgency"]
+        return {
+            "risk_level": result["risk_level"],
+            "key_risk_factors": result["key_risk_factors"],
+            "recommended_urgency": result["recommended_urgency"],
+        }
     except Exception as e:
         logger.exception("Risk Analysis Agent failed after retries")
-        state["errors"] = state.get("errors", []) + [f"Risk Analysis Agent error: {e}"]
-        state["risk_level"] = "Unknown"
-        state["key_risk_factors"] = "Risk analysis unavailable due to a technical error."
-        state["recommended_urgency"] = "Manual review recommended."
-    return state
+        return {
+            "errors": state.get("errors", []) + [f"Risk Analysis Agent error: {e}"],
+            "risk_level": "Unknown",
+            "key_risk_factors": "Risk analysis unavailable due to a technical error.",
+            "recommended_urgency": "Manual review recommended.",
+        }
 
 
 def drafting_node(state: ComplianceWorkflowState) -> ComplianceWorkflowState:
@@ -211,12 +237,13 @@ def drafting_node(state: ComplianceWorkflowState) -> ComplianceWorkflowState:
         f"Urgency: {state['recommended_urgency']}."
     )
     try:
-        state["draft"] = with_retries(_drafter.draft, state["query"], state["research_answer"], risk_summary)
+        return {"draft": with_retries(_drafter.draft, state["query"], state["research_answer"], risk_summary)}
     except Exception as e:
         logger.exception("Drafting Agent failed after retries")
-        state["errors"] = state.get("errors", []) + [f"Drafting Agent error: {e}"]
-        state["draft"] = None  # graceful degradation - research/risk results are still returned
-    return state
+        return {
+            "errors": state.get("errors", []) + [f"Drafting Agent error: {e}"],
+            "draft": None,
+        }
 
 
 def log_memory_node(state: ComplianceWorkflowState) -> ComplianceWorkflowState:
@@ -241,8 +268,8 @@ def log_memory_node(state: ComplianceWorkflowState) -> ComplianceWorkflowState:
         )
     except Exception as e:
         logger.exception("Failed to write audit log entry")
-        state["errors"] = state.get("errors", []) + [f"Audit logging error: {e}"]
-    return state
+        return {"errors": state.get("errors", []) + [f"Audit logging error: {e}"]}
+    return {}
 
 
 # ---------------------------------------------------------
@@ -253,10 +280,21 @@ def _after_research_condition(state: ComplianceWorkflowState) -> str:
     Decides whether to call a tool, or move on to risk analysis.
     Also enforces MAX_TOOL_ITERATIONS as a safety cap.
     """
-    tool_call_count = sum(1 for m in state["messages"] if isinstance(m, AIMessage) and getattr(m, "tool_calls", None))
+    tool_call_messages = [
+        message for message in state["messages"]
+        if isinstance(message, AIMessage) and getattr(message, "tool_calls", None)
+    ]
+    tool_call_count = len(tool_call_messages)
     if tool_call_count >= MAX_TOOL_ITERATIONS:
         logger.warning("Max tool iterations reached - forcing finalize.")
         return "finalize"
+
+    if len(tool_call_messages) >= 2:
+        previous = tool_call_messages[-2].tool_calls
+        current = tool_call_messages[-1].tool_calls
+        if str(previous) == str(current):
+            logger.warning("Repeated identical tool call detected - forcing finalize.")
+            return "finalize"
 
     last_message = state["messages"][-1]
     if getattr(last_message, "tool_calls", None):
@@ -336,7 +374,7 @@ def _build_initial_state(query: str, thread_id: str) -> ComplianceWorkflowState:
         "query": query,
         "thread_id": thread_id,
         "route": "",
-        "messages": [HumanMessage(content=query)],
+        "messages": [HumanMessage(content=query, id=str(uuid.uuid4()))],
         "research_answer": "",
         "risk_level": "",
         "key_risk_factors": "",
@@ -384,6 +422,7 @@ def stream_compliance_workflow(query: str, thread_id: Optional[str] = None):
             yield node_name, node_state
 
     final_state = workflow.get_state(config).values
+    yield "__final__", final_state
     save_message(resolved_thread_id, "ai", _conversation_response(final_state))
 
 

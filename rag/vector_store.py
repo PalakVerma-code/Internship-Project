@@ -1,6 +1,6 @@
-"""Phase 2 - Embeddings + ChromaDB Vector Store"""
+"""Policy vector-store selection with local and Supabase backends."""
 import os
-from typing import List, Optional
+from typing import Any, List, Optional
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -11,11 +11,23 @@ PERSIST_DIRECTORY = "chroma_db"
 COLLECTION_NAME = "compliance_policies"
 
 
+def use_supabase_backend() -> bool:
+    """Return whether the explicitly selected backend is Supabase."""
+    return os.getenv("VECTOR_BACKEND", "local").strip().lower() == "supabase"
+
+
 def get_embedding_model() -> HuggingFaceEmbeddings:
     return HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
 
 
-def build_vector_store(documents_dir: str = "documents", persist_directory: str = PERSIST_DIRECTORY) -> Chroma:
+def build_vector_store(
+    documents_dir: str = "documents",
+    persist_directory: str = PERSIST_DIRECTORY,
+) -> Any:
+    if use_supabase_backend():
+        from rag.supabase_vector_store import build_vector_store as build_supabase_vector_store
+        return build_supabase_vector_store()
+
     chunks = load_and_split(documents_dir)
     embeddings = get_embedding_model()
     return Chroma.from_documents(
@@ -24,14 +36,24 @@ def build_vector_store(documents_dir: str = "documents", persist_directory: str 
     )
 
 
-def load_vector_store(persist_directory: str = PERSIST_DIRECTORY) -> Optional[Chroma]:
+def load_vector_store(persist_directory: str = PERSIST_DIRECTORY) -> Optional[Any]:
+    if use_supabase_backend():
+        from rag.supabase_vector_store import get_vector_store
+        return get_vector_store()
+
     if not os.path.isdir(persist_directory):
         return None
     embeddings = get_embedding_model()
     return Chroma(collection_name=COLLECTION_NAME, embedding_function=embeddings, persist_directory=persist_directory)
 
 
-def get_or_build_vector_store(documents_dir: str = "documents", persist_directory: str = PERSIST_DIRECTORY) -> Chroma:
+def get_or_build_vector_store(
+    documents_dir: str = "documents",
+    persist_directory: str = PERSIST_DIRECTORY,
+) -> Any:
+    if use_supabase_backend():
+        return load_vector_store(persist_directory)
+
     store = load_vector_store(persist_directory)
     if store is not None:
         return store
