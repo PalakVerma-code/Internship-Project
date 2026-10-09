@@ -6,4 +6,5 @@ load_dotenv()
 
 url = os.getenv("SUPABASE_URL")
 key = os.getenv("SUPABASE_KEY")
-supabase = create_client(url, key)
+SUPABASE_CONFIGURED = bool(url and key)
+supabase = create_client(url, key) if SUPABASE_CONFIGURED else None

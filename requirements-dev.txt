@@ -1,0 +1,4 @@
+# Install the production dependencies plus local test tooling.
+-r requirements.txt
+
+pytest==9.1.1

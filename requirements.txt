@@ -1,32 +1,32 @@
-# Milestone 3 - versions below are the exact set the full test suite (24 tests)
-# and the FastAPI endpoints were verified against.
-#
-# NOTE: the langchain/langgraph packages moved up a major version compared to
-# the Milestone 2 pins (langgraph 0.2.45 -> 1.2.x, langchain-core 0.3 -> 1.6).
-# They must be upgraded TOGETHER - mixing old and new langchain-* packages
-# causes dependency conflicts. Use a fresh virtual environment.
-langchain==1.4.2
-langchain-core==1.6.5
+# Production runtime dependencies.
+# These versions match the currently tested virtual environment so local and
+# Render installations use the same direct dependency versions.
+
+# Web API
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+python-multipart==0.0.32
+pydantic==2.13.5
+python-dotenv==1.2.3
+pypdf==6.17.0
+
+# LLM and multi-agent workflow
+langchain==1.3.18
+langchain-core==1.6.1
 langchain-groq==1.1.3
 langchain-community==0.4.2
 langchain-huggingface==1.2.2
-langchain-chroma==1.1.0
 langchain-text-splitters==1.1.2
-langgraph==1.2.12
-langgraph-checkpoint-sqlite==3.1.1
+langgraph==1.2.11
 langgraph-prebuilt==1.1.0
-chromadb==1.5.9
-sentence-transformers==6.1.0
-pypdf==5.9.0
-python-dotenv==1.2.2
-requests==2.33.1
-ddgs==9.16.0
-fastapi==0.141.1
-uvicorn[standard]==0.54.0
-python-multipart==0.0.32
-httpx==0.28.1
-reportlab==4.4.10
-pytest==9.1.1
+langgraph-checkpoint-sqlite==3.1.1
 
-# Optional (used automatically if TAVILY_API_KEY is set in .env):
-# tavily-python
+# Embeddings and local fallback vector store
+langchain-chroma==1.1.0
+chromadb==1.5.9
+sentence-transformers==6.0.1
+
+# Supabase vector store and external research tools
+supabase==2.31.0
+requests==2.34.2
+ddgs==9.16.0

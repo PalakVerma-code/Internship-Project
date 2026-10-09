@@ -259,6 +259,12 @@ uvicorn main:app --reload --port 8000
 
 Open the dashboard at [http://127.0.0.1:8000/](http://127.0.0.1:8000/). API documentation is available at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
 
+### Deploying to a cloud host
+
+The repository includes `Procfile` and `render.yaml` deployment configuration. For Render, create a Blueprint from this repository. Set these environment variables in the service dashboard: `GROQ_API_KEY`, `SUPABASE_URL`, and `SUPABASE_KEY`. `TAVILY_API_KEY` is optional.
+
+The service must run with the platform-provided `PORT` and bind to `0.0.0.0`; do not use the local development command with `--reload` in production. Set `ALLOWED_ORIGINS` to the deployed dashboard origin as a comma-separated list. The `/health` response is `degraded` until both Groq and Supabase are configured. Uploaded PDFs and the in-memory job list use the instance filesystem, so use durable object storage and a shared job store before treating this as a production service.
+
 The original Milestone 1 commands (`python agent.py` and `streamlit run dashboard.py`) are retained above for the earlier interface. The FastAPI command is the recommended command for the current multi-agent workflow.
 
 ## Demonstration Questions
@@ -495,4 +501,135 @@ This should additionally run the Drafting Agent and display the generated docume
 - The default LangGraph checkpointer is process-local unless SQLite memory is enabled.
 - Agents coordinate through shared LangGraph state and handoffs rather than direct agent-to-agent messaging.
 - The system supports legal research and compliance workflow assistance; final legal decisions require human review.
+
+## Vendor Agreement Compliance Review
+
+The current workflow separates permanent reference knowledge from the document being
+reviewed in a specific case. This makes the product suitable for a compliance officer,
+legal operations executive, or vendor-risk manager who needs to check a supplier
+agreement against the organization's policies before signing.
+
+### Implemented document roles
+
+#### Knowledge Base: reference policies and regulations
+
+Upload organizational policies, regulatory guidance, and review checklists through the
+**Knowledge Base** section. Examples include:
+
+- Vendor Security Policy
+- Data Protection Policy
+- Information Security Policy
+- Contract Review Checklist
+- CERT-In or other regulatory guidance
+
+These PDFs are stored in `documents/` and are included in the ChromaDB index after
+**Rebuild Index** is selected. They provide reusable reference evidence for future
+compliance questions and agreement reviews.
+
+#### Case Documents: the agreement under review
+
+Upload the current agreement or contract through the **Case Documents** section.
+Examples include:
+
+- Vendor Services Agreement
+- Data Processing Agreement
+- Non-Disclosure Agreement
+- Supplier or outsourcing contract
+
+Case documents are stored separately in `documents/cases/`. They are not added to the
+permanent Knowledge Base or ChromaDB index. When a case document is selected, the
+backend extracts its text with `pypdf` and passes that text to the current workflow
+alongside the user's review request.
+
+The current prototype keeps uploaded case PDFs on the local filesystem until they are
+manually removed. They are not stored in the audit database, Supabase, or the Knowledge
+Base vector index. Production deployments should add an explicit retention and deletion
+policy before processing confidential agreements.
+
+### End-to-end review flow
+
+```text
+Reference policies and regulations
+              |
+              v
+       Knowledge Base / ChromaDB
+
+Current vendor agreement
+              |
+              v
+       Case Documents / text extraction
+              |
+              v
+User review request
+              |
+              v
+Manager Agent selects research or research + drafting
+              |
+              v
+Research Agent retrieves relevant policy evidence
+              |
+              v
+Risk Analysis Agent identifies gaps, severity, and urgency
+              |
+              v
+Drafting Agent prepares an amendment request when asked
+              |
+              v
+Auditable findings, sources, recommendation, and draft
+```
+
+For example, a user can upload `Vendor Security Policy.pdf` as a reference document
+and `sample_vendor_agreement.pdf` as the current case document, then ask:
+
+```text
+Review this vendor agreement for data protection, breach notification,
+subprocessors, data deletion, audit rights, indemnity, liability, and
+termination risks. Compare it with the organization's Vendor Security Policy
+and draft an email listing the amendments required before signing.
+```
+
+The workflow can identify differences such as a seven-day breach-notification period
+in the agreement versus a 24-hour policy requirement, missing written subprocessor
+approval, incomplete deletion obligations, limited audit rights, and a restrictive
+liability cap. It then produces a preliminary risk assessment, recommended amendments,
+and an optional vendor communication draft.
+
+### Case-review API
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/case-documents` | Uploads a case-specific agreement without indexing it. |
+| `GET` | `/case-documents` | Lists available case agreements for selection. |
+| `POST` | `/query` | Accepts `case_document` to analyze a selected agreement. |
+| `GET` | `/case-documents/{filename}` | Serves an uploaded case PDF for preview. |
+
+### Current scope and limitations
+
+The implemented feature is a policy-grounded agreement analysis workflow. It is not
+yet a complete automated contract-review platform. In particular:
+
+- The extracted agreement text is supplied to the multi-agent workflow, but the result
+  is not yet stored as a structured clause-by-clause case report.
+- Page-aware clause extraction and deterministic pass/fail checklist rules are future
+  enhancements.
+- The system provides preliminary compliance support, not final legal advice.
+- Uploaded case documents currently require manual cleanup and do not yet have user,
+  case, access-control, or retention metadata.
+
+### Future scope
+
+The next production-oriented improvements are:
+
+1. Add a structured contract-review checklist with fields for clause, status, evidence
+   page, risk, and recommended amendment.
+2. Add deterministic checks for required clauses such as breach notification, data
+   deletion, audit rights, subprocessor approval, liability, and termination.
+3. Preserve page numbers and source citations from both the agreement and policies.
+4. Create case IDs with ownership, timestamps, review status, and retention dates.
+5. Add secure deletion, access control, encryption, and cloud object storage for
+   confidential agreements.
+6. Add side-by-side comparison of two agreement versions.
+7. Add structured PDF and DOCX report export for legal or procurement review.
+8. Add evaluation cases with expected findings so changes to the workflow can be tested
+   before demonstrations or deployment.
  
