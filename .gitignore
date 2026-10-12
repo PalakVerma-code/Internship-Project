@@ -16,6 +16,10 @@ checkpoints.sqlite
 checkpoints.sqlite-shm
 checkpoints.sqlite-wal
 requirementss.txt
+Readmee.md
+demo_documents/
+sample_files/
+
 
 # Local policy and case uploads. Production uses Supabase Storage.
 documents/*.pdf
